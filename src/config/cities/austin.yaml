@@ -1,0 +1,27 @@
+name: austin
+display_name: "Austin, TX"
+state: TX
+timezone: America/Chicago
+latitude: 30.2672
+longitude: -97.7431
+radius_miles: 30
+neighborhoods:
+  - Downtown
+  - South Austin
+  - East Austin
+  - North Austin
+  - West Austin
+  - South Congress
+  - Zilker
+  - Mueller
+  - Domain
+  - Cedar Park
+  - Round Rock
+  - Pflugerville
+  - Bee Cave
+  - Lakeway
+default_sources:
+  - eventbrite
+  - bandsintown
+  - do512
+  - austin_chronicle
