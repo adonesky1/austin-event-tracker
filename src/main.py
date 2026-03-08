@@ -13,8 +13,24 @@ logger = structlog.get_logger()
 settings = Settings()
 
 
+def _run_migrations():
+    import subprocess
+    result = subprocess.run(["alembic", "upgrade", "head"], capture_output=True, text=True)
+    if result.returncode != 0:
+        logger.error("migration_failed", stderr=result.stderr)
+        raise RuntimeError(f"Alembic migration failed: {result.stderr}")
+    logger.info("migrations_applied")
+
+
+async def _seed_if_empty():
+    from scripts.seed import seed
+    await seed()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _run_migrations()
+    await _seed_if_empty()
     from src.jobs.scheduler import create_scheduler
     scheduler = create_scheduler(start=True)
     logger.info("app_startup", version="0.1.0")
