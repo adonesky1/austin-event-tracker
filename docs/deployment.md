@@ -1,0 +1,399 @@
+# Deployment Guide
+
+This app runs as a single Docker Compose stack: a FastAPI process (with in-process APScheduler) plus a Postgres 16 database. Everything runs unattended — events are ingested daily at 6am CT, digests are emailed Tuesday and Friday at 8am CT.
+
+---
+
+## 1. What You Need Before Starting
+
+### A VPS
+
+Any cheap VPS works. Recommendations:
+
+| Provider | Size | Cost | Notes |
+|---|---|---|---|
+| Hetzner Cloud | CX22 (2 vCPU, 4GB RAM) | ~€4/mo | Best price/perf, EU-hosted |
+| DigitalOcean | Basic Droplet (2 vCPU, 2GB RAM) | $18/mo | Easy UI, US-hosted |
+| Fly.io | shared-cpu-1x (256MB) | Free tier | Lowest cost, more complex setup |
+
+**Minimum requirements:** 1 vCPU, 1GB RAM, 10GB disk. Ubuntu 22.04 LTS recommended.
+
+### A Domain (Required for Email)
+
+Resend requires a verified domain to send email. You cannot use a Gmail/Yahoo address as the sender. A cheap domain ($10-12/yr from Namecheap or Cloudflare) is sufficient. You'll add 2-3 DNS records.
+
+### API Keys
+
+| Key | Where to Get | Notes |
+|---|---|---|
+| **Anthropic** (`ANTHROPIC_API_KEY`) | [console.anthropic.com](https://console.anthropic.com) | Free tier: $5 credit. Uses Claude Haiku — very cheap (~$0.001 per digest). |
+| **Resend** (`RESEND_API_KEY`) | [resend.com](https://resend.com) | Free tier: 3,000 emails/mo. Create account → API Keys → Create. |
+| **Eventbrite** (`EVENTBRITE_API_KEY`) | [eventbrite.com/platform](https://www.eventbrite.com/platform/api) | Free. Create app → get private token. |
+| **Bandsintown** (`BANDSINTOWN_APP_ID`) | [artists.bandsintown.com/support/api-installation](https://artists.bandsintown.com/support/api-installation) | Free. The "app_id" is just your app name (e.g. `austin-family-events`), no approval required. |
+
+Do512 and Austin Chronicle are scraped directly — no API key needed.
+
+---
+
+## 2. Configure Resend (Email Sending)
+
+This is the most involved step. Do it before touching the VPS.
+
+**Step 1: Add your domain to Resend**
+- Log into [resend.com](https://resend.com) → Domains → Add Domain
+- Enter your domain (e.g. `example.com`)
+
+**Step 2: Add DNS records**
+Resend shows you 3 DNS records to add (SPF, DKIM, DMARC). Add them in your domain registrar's DNS panel. Changes propagate in 5–30 minutes.
+
+**Step 3: Choose your from address**
+Once the domain is verified, your from address can be anything at that domain — e.g. `digest@example.com` or `events@yourdomain.com`. This goes in `FROM_EMAIL`.
+
+**Step 4: The to address**
+This single-user app sends the digest to the same address as `FROM_EMAIL`. If you want the digest delivered to a different inbox (e.g. your Gmail), set `FROM_EMAIL` to your sending address and add a separate `TO_EMAIL` env var — see note in [Customizing the Recipient](#customizing-the-recipient).
+
+---
+
+## 3. Set Up the VPS
+
+SSH into your fresh VPS as root, then:
+
+```bash
+# Create a non-root user
+useradd -m -s /bin/bash deploy
+usermod -aG sudo deploy
+# Copy your SSH key
+mkdir -p /home/deploy/.ssh
+cp ~/.ssh/authorized_keys /home/deploy/.ssh/
+chown -R deploy:deploy /home/deploy/.ssh
+
+# Switch to deploy user for the rest
+su - deploy
+```
+
+**Install Docker:**
+
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+# Log out and back in for group membership to take effect
+exit
+ssh deploy@your-vps-ip
+```
+
+Verify: `docker --version` and `docker compose version`
+
+---
+
+## 4. Deploy the App
+
+**Clone the repo:**
+
+```bash
+git clone https://github.com/you/austin-event-tracker.git
+cd austin-event-tracker
+```
+
+**Create your `.env` file:**
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Fill in every value:
+
+```bash
+# Database — leave this as-is, it points to the docker-compose postgres service
+DATABASE_URL=postgresql+asyncpg://events:events@db:5432/events
+
+# LLM
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Email
+RESEND_API_KEY=re_...
+FROM_EMAIL=digest@yourdomain.com
+
+# Event sources
+EVENTBRITE_API_KEY=your_private_token
+BANDSINTOWN_APP_ID=austin-family-events   # can be any descriptive string
+
+# App security
+ADMIN_API_KEY=change-this-to-a-random-string
+FEEDBACK_SECRET=change-this-to-another-random-string
+
+# App config
+BASE_URL=http://your-vps-ip:8000   # or https://yourdomain.com if you add nginx
+DEFAULT_CITY=austin
+LOG_LEVEL=INFO
+```
+
+Generate secure random strings for `ADMIN_API_KEY` and `FEEDBACK_SECRET`:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+**Build and start:**
+
+```bash
+docker compose up -d --build
+```
+
+This takes 3–5 minutes on first run (downloads images, installs Python deps, installs Chromium for Playwright).
+
+---
+
+## 5. Verify the Deployment
+
+**Check containers are running:**
+
+```bash
+docker compose ps
+```
+
+Expected output:
+```
+NAME                        STATUS          PORTS
+austin-event-tracker-app-1  Up (healthy)    0.0.0.0:8000->8000/tcp
+austin-event-tracker-db-1   Up (healthy)    0.0.0.0:5432->5432/tcp
+```
+
+**Check app logs for startup errors:**
+
+```bash
+docker compose logs app --tail=50
+```
+
+You should see lines like:
+```
+migrations_applied
+Seeded default user: digest@yourdomain.com
+scheduler_started  jobs=['ingest_all_sources', 'generate_and_send_digest', 'cleanup_old_events']
+app_startup  version=0.1.0
+```
+
+**Hit the health endpoint:**
+
+```bash
+curl http://your-vps-ip:8000/health
+# {"status":"ok","version":"0.1.0"}
+```
+
+**Check the API docs:**
+
+Open `http://your-vps-ip:8000/docs` in a browser — you'll see the full Swagger UI.
+
+---
+
+## 6. Trigger a Test Digest
+
+Don't wait until Tuesday to find out if email is working. Trigger it manually:
+
+```bash
+# From inside the app container
+docker compose exec app python3 -c "
+import asyncio
+from src.jobs.digest_job import run_digest
+asyncio.run(run_digest())
+"
+```
+
+Watch the logs in another terminal:
+
+```bash
+docker compose logs app -f
+```
+
+A successful run looks like:
+```
+run_ingestion_start
+source_fetch_complete  source=eventbrite events=47
+source_fetch_complete  source=do512 events=31
+...
+ingest_complete  total=98 normalized=94 deduped=87
+digest_job_complete  events=15 email_id=abc123
+```
+
+Check your inbox — the digest should arrive within a minute.
+
+---
+
+## 7. Routine Operations
+
+**View logs:**
+
+```bash
+docker compose logs app -f          # follow live
+docker compose logs app --tail=200  # last 200 lines
+```
+
+**Restart the app** (e.g. after config changes):
+
+```bash
+docker compose restart app
+```
+
+**Redeploy after a code update:**
+
+```bash
+git pull
+docker compose up -d --build app
+```
+
+**Check scheduled job timing** (all times CT):
+
+| Job | Schedule |
+|---|---|
+| Ingest all sources | Daily at 6:00 AM |
+| Generate and send digest | Tuesday and Friday at 8:00 AM |
+| Archive old events | Sunday at 3:00 AM |
+
+**Manually trigger ingestion:**
+
+```bash
+docker compose exec app python3 -c "
+import asyncio
+from src.jobs.ingest_job import run_ingestion
+asyncio.run(run_ingestion())
+"
+```
+
+**Access the database:**
+
+```bash
+docker compose exec db psql -U events -d events
+```
+
+Useful queries:
+
+```sql
+-- Count events by category
+SELECT category, count(*) FROM events GROUP BY category ORDER BY count DESC;
+
+-- Most recent ingestion
+SELECT source_name, max(ingested_at) FROM event_sources GROUP BY source_name;
+
+-- Recent digests
+SELECT id, status, sent_at, created_at FROM digests ORDER BY created_at DESC LIMIT 10;
+
+-- Feedback summary
+SELECT feedback_type, count(*) FROM feedback GROUP BY feedback_type;
+```
+
+---
+
+## 8. (Optional) Add HTTPS with Nginx
+
+For a proper domain + TLS, install Nginx and Certbot on the VPS:
+
+```bash
+sudo apt install -y nginx certbot python3-certbot-nginx
+```
+
+Create `/etc/nginx/sites-available/events`:
+
+```nginx
+server {
+    server_name yourdomain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Enable and get a certificate:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/events /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d yourdomain.com
+```
+
+Then update `BASE_URL=https://yourdomain.com` in `.env` and restart:
+
+```bash
+docker compose restart app
+```
+
+---
+
+## 9. Customizing the Recipient
+
+Currently the digest is sent from `FROM_EMAIL` to `FROM_EMAIL` (same address). To send to a different inbox, add a `TO_EMAIL` variable to `.env` and update [`src/jobs/digest_job.py`](../src/jobs/digest_job.py):
+
+Find this line (around line 36):
+```python
+profile = DEFAULT_PROFILE.model_copy(update={"email": settings.from_email})
+```
+
+Change to:
+```python
+to_email = getattr(settings, "to_email", settings.from_email)
+profile = DEFAULT_PROFILE.model_copy(update={"email": to_email})
+```
+
+Then add to `src/config/settings.py`:
+```python
+to_email: str = ""  # defaults to from_email if blank
+```
+
+---
+
+## 10. Troubleshooting
+
+**App won't start — `migration_failed`:**
+
+```bash
+docker compose logs app | grep migration
+```
+
+Usually means the database isn't ready yet. Check: `docker compose ps db` — the db container should be healthy before the app starts. If the db is healthy but migrations still fail, check `DATABASE_URL` in `.env` uses `db` as the hostname (not `localhost`).
+
+**No events from Eventbrite:**
+
+The Eventbrite free API tier has rate limits and may require a published app. Verify your key works:
+
+```bash
+curl "https://www.eventbriteapi.com/v3/events/search/?location.address=Austin,TX&token=YOUR_KEY"
+```
+
+**Playwright/Do512 scrape fails:**
+
+Chromium inside Docker sometimes needs extra flags. Check logs for `BrowserType.launch`. If it fails with "executable not found", rebuild the image:
+
+```bash
+docker compose build --no-cache app
+```
+
+**Email not arriving:**
+
+1. Check Resend dashboard → Logs — did the API call succeed?
+2. Verify the domain is verified in Resend (green checkmark)
+3. Check spam folder
+4. Confirm `FROM_EMAIL` exactly matches a verified domain in Resend
+
+**Out of disk space** (usually from Docker images):
+
+```bash
+docker system prune -f           # remove unused images and containers
+docker volume prune -f           # ⚠️  only if you want to wipe the database
+```
+
+---
+
+## Cost Estimate (monthly)
+
+| Item | Cost |
+|---|---|
+| Hetzner CX22 VPS | ~€4 |
+| Domain | ~$1 (amortized) |
+| Anthropic API (2 digests/wk × Claude Haiku) | ~$0.05 |
+| Resend (free tier, <100 emails/mo) | $0 |
+| Eventbrite API (free tier) | $0 |
+| **Total** | **~€5/mo** |
