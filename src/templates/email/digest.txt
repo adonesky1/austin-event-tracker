@@ -1,0 +1,25 @@
+AUSTIN FAMILY EVENTS
+{{ window_start }} – {{ window_end }}
+=====================================
+
+{% for section_key, events in sections.items() %}{% if events %}
+{{ section_labels.get(section_key, section_key.replace('_', ' ').upper()) }}
+-------------------------------------
+{% for event, score in events %}
+{{ loop.index }}. {{ event.title }}
+   {{ event.start_datetime | format_datetime }}{% if event.venue_name %} · {{ event.venue_name }}{% endif %}{% if event.neighborhood %} · {{ event.neighborhood }}{% endif %}
+
+   {% if event.price_max is not none %}{% if event.price_max == 0 %}Free{% else %}${{ event.price_max | int }}{% endif %}{% endif %}
+
+   {% if event.editorial_summary %}{{ event.editorial_summary }}{% elif event.description %}{{ event.description[:200] }}{% endif %}
+
+   {% if event.relevance_explanation %}Why this is for you: {{ event.relevance_explanation }}{% endif %}
+
+   {% if event.canonical_event_url %}Details: {{ event.canonical_event_url }}{% endif %}
+   Feedback: {{ base_url }}/api/feedback/{{ event.id }}?type=thumbs_up&token={{ feedback_tokens.get(event.id | string, '') }}
+
+{% endfor %}
+{% endif %}{% endfor %}
+-------------------------------------
+View online: {{ base_url }}/digests/{{ digest_id }}
+Manage preferences: {{ base_url }}/preferences

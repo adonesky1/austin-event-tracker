@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ subject }}</title>
+<style>
+  body { margin: 0; padding: 0; background: #f5f4f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #2d2d2d; }
+  .wrapper { max-width: 600px; margin: 0 auto; background: #ffffff; }
+  .header { background: #1a1a2e; padding: 32px 24px; text-align: center; }
+  .header h1 { margin: 0 0 4px; color: #ffffff; font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+  .header p { margin: 0; color: #a0a0c0; font-size: 14px; }
+  .body { padding: 0 24px 32px; }
+  .section { margin-top: 32px; }
+  .section-title { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #888; border-bottom: 1px solid #e8e8e8; padding-bottom: 8px; margin-bottom: 16px; }
+  .event-card { border: 1px solid #e8e8e8; border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
+  .event-card-image { width: 100%; height: 160px; object-fit: cover; display: block; }
+  .event-card-body { padding: 16px; }
+  .event-title { font-size: 17px; font-weight: 700; margin: 0 0 6px; color: #1a1a2e; line-height: 1.3; }
+  .event-meta { font-size: 13px; color: #666; margin: 0 0 4px; }
+  .event-meta strong { color: #444; }
+  .event-price { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin: 6px 0 10px; }
+  .price-free { background: #e8f5e9; color: #2e7d32; }
+  .price-paid { background: #f3f0ff; color: #5b21b6; }
+  .event-summary { font-size: 14px; color: #444; line-height: 1.6; margin: 0 0 8px; }
+  .event-why { font-size: 13px; color: #6b7280; font-style: italic; margin: 0 0 12px; border-left: 3px solid #e0e0e0; padding-left: 10px; }
+  .event-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .btn-details { display: inline-block; padding: 8px 16px; background: #1a1a2e; color: #ffffff !important; text-decoration: none; border-radius: 6px; font-size: 13px; font-weight: 600; }
+  .btn-feedback { display: inline-block; padding: 6px 10px; color: #888; text-decoration: none; font-size: 18px; border-radius: 4px; border: 1px solid #e8e8e8; }
+  .btn-feedback:hover { background: #f5f5f5; }
+  .footer { background: #f5f4f0; padding: 24px; text-align: center; border-top: 1px solid #e8e8e8; }
+  .footer p { margin: 0 0 8px; font-size: 12px; color: #888; }
+  .footer a { color: #5b21b6; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <h1>Austin Family Events</h1>
+    <p>Your curated picks for {{ window_start }} – {{ window_end }}</p>
+  </div>
+
+  <div class="body">
+    {% for section_key, events in sections.items() %}
+    {% if events %}
+    <div class="section">
+      <div class="section-title">{{ section_labels.get(section_key, section_key.replace('_', ' ').title()) }}</div>
+      {% for event, score in events %}
+      <div class="event-card">
+        {% if event.image_url %}
+        <img class="event-card-image" src="{{ event.image_url }}" alt="{{ event.title }}" />
+        {% endif %}
+        <div class="event-card-body">
+          <h2 class="event-title">{{ event.title }}</h2>
+          <p class="event-meta">
+            <strong>{{ event.start_datetime | format_datetime }}</strong>
+            {% if event.venue_name %} &nbsp;·&nbsp; {{ event.venue_name }}{% endif %}
+            {% if event.neighborhood %} &nbsp;·&nbsp; {{ event.neighborhood }}{% endif %}
+          </p>
+          {% if event.price_max is not none %}
+            {% if event.price_max == 0 %}
+            <span class="event-price price-free">Free</span>
+            {% else %}
+            <span class="event-price price-paid">
+              {% if event.price_min and event.price_min != event.price_max %}
+              ${{ event.price_min | int }}–${{ event.price_max | int }}
+              {% else %}
+              ${{ event.price_max | int }}
+              {% endif %}
+            </span>
+            {% endif %}
+          {% endif %}
+          {% if event.editorial_summary %}
+          <p class="event-summary">{{ event.editorial_summary }}</p>
+          {% elif event.description %}
+          <p class="event-summary">{{ event.description[:200] }}{% if event.description|length > 200 %}…{% endif %}</p>
+          {% endif %}
+          {% if event.relevance_explanation %}
+          <p class="event-why">{{ event.relevance_explanation }}</p>
+          {% endif %}
+          <div class="event-actions">
+            {% if event.canonical_event_url %}
+            <a href="{{ event.canonical_event_url }}" class="btn-details" target="_blank">Details →</a>
+            {% endif %}
+            <a href="{{ base_url }}/api/feedback/{{ event.id }}?type=thumbs_up&token={{ feedback_tokens.get(event.id | string, '') }}" class="btn-feedback" title="Love it">👍</a>
+            <a href="{{ base_url }}/api/feedback/{{ event.id }}?type=thumbs_down&token={{ feedback_tokens.get(event.id | string, '') }}" class="btn-feedback" title="Not for me">👎</a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="footer">
+    <p><a href="{{ base_url }}/digests/{{ digest_id }}">View in browser</a> &nbsp;·&nbsp; <a href="{{ base_url }}/preferences">Manage preferences</a></p>
+    <p>You're receiving this because you set up Austin Family Events Curator.</p>
+  </div>
+</div>
+</body>
+</html>
