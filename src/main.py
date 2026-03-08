@@ -15,8 +15,11 @@ settings = Settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from src.jobs.scheduler import create_scheduler
+    scheduler = create_scheduler(start=True)
     logger.info("app_startup", version="0.1.0")
     yield
+    scheduler.shutdown(wait=False)
     logger.info("app_shutdown")
 
 
