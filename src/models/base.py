@@ -70,3 +70,9 @@ class SourceHealthStatus(str, enum.Enum):
     DEGRADED = "degraded"
     FAILING = "failing"
     DISABLED = "disabled"
+
+
+class SyncRunStatus(str, enum.Enum):
+    SUCCESS = "success"
+    FAILED = "failed"
+    SKIPPED = "skipped"

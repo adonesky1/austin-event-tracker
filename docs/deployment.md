@@ -30,6 +30,7 @@ Resend requires a verified domain to send email. You cannot use a Gmail/Yahoo ad
 | **Resend** (`RESEND_API_KEY`) | [resend.com](https://resend.com) | Free tier: 3,000 emails/mo. Create account → API Keys → Create. |
 | **Eventbrite** (`EVENTBRITE_API_KEY`) | [eventbrite.com/platform](https://www.eventbrite.com/platform/api) | Free. Create app → get private token. |
 | **Bandsintown** (`BANDSINTOWN_APP_ID`) | [artists.bandsintown.com/support/api-installation](https://artists.bandsintown.com/support/api-installation) | Free. The "app_id" is just your app name (e.g. `austin-family-events`), no approval required. |
+| **Google Calendar OAuth client** (`GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`) | [Google Cloud Console](https://console.cloud.google.com/) | Optional. Only needed if you want curated events pushed to a shared Google Calendar. Create a desktop OAuth client and enable the Google Calendar API. |
 
 Do512 and Austin Chronicle are scraped directly — no API key needed.
 
@@ -85,7 +86,56 @@ Verify: `docker --version` and `docker compose version`
 
 ---
 
-## 4. Deploy the App
+## 4. (Optional) Configure Google Calendar Publishing
+
+Skip this section if you only want email digests.
+
+Google Calendar publishing uses OAuth and is easiest to bootstrap from **your local machine**, not the VPS, because the first run opens a browser for consent.
+
+### Step 1: Enable the Google Calendar API
+
+In Google Cloud:
+
+1. Create or select a project
+2. Enable **Google Calendar API**
+3. Configure the OAuth consent screen
+4. Create a **Desktop app** OAuth client
+5. Download the OAuth client JSON file
+
+### Step 2: Run the bootstrap helper locally
+
+From your local clone of the repo:
+
+```bash
+python3 scripts/google_calendar_bootstrap.py path/to/oauth-client.json
+```
+
+This will:
+
+- open the Google OAuth flow in your browser
+- create a secondary calendar named **Austin Curated Events**
+- print:
+  - `GOOGLE_CALENDAR_CLIENT_ID`
+  - `GOOGLE_CALENDAR_CLIENT_SECRET`
+  - `GOOGLE_CALENDAR_REFRESH_TOKEN`
+  - `GOOGLE_CALENDAR_ID`
+
+Save those values — you'll paste them into the VPS `.env` file in the next section.
+
+### Step 3: Share the calendar
+
+This app does **not** manage subscriber invites yet.
+
+To keep the calendar invite-only:
+
+1. Open Google Calendar in the browser
+2. Find the new secondary calendar
+3. Open **Settings and sharing**
+4. Add the Google accounts that should have reader access
+
+---
+
+## 5. Deploy the App
 
 **Clone the repo:**
 
@@ -126,7 +176,28 @@ FEEDBACK_SECRET=change-this-to-another-random-string
 BASE_URL=http://your-vps-ip:8000   # or https://yourdomain.com if you add nginx
 DEFAULT_CITY=austin
 LOG_LEVEL=INFO
+
+# Optional Google Calendar publishing
+GOOGLE_CALENDAR_ENABLED=false
+GOOGLE_CALENDAR_CLIENT_ID=
+GOOGLE_CALENDAR_CLIENT_SECRET=
+GOOGLE_CALENDAR_REFRESH_TOKEN=
+GOOGLE_CALENDAR_ID=
+GOOGLE_CALENDAR_MIN_SCORE=0.65
+GOOGLE_CALENDAR_HORIZON_DAYS=21
+GOOGLE_CALENDAR_FALLBACK_DURATION_MINUTES=120
+GOOGLE_CALENDAR_SYNC_HOUR=7
+GOOGLE_CALENDAR_TIMEZONE=America/Chicago
+GOOGLE_CALENDAR_CALENDAR_NAME=Austin Curated Events
 ```
+
+If you want Google Calendar publishing, change:
+
+```bash
+GOOGLE_CALENDAR_ENABLED=true
+```
+
+and fill in the client ID, client secret, refresh token, and calendar ID from the bootstrap step.
 
 Generate secure random strings for `ADMIN_API_KEY` and `FEEDBACK_SECRET`:
 
@@ -144,7 +215,7 @@ This takes 3–5 minutes on first run (downloads images, installs Python deps, i
 
 ---
 
-## 5. Verify the Deployment
+## 6. Verify the Deployment
 
 **Check containers are running:**
 
@@ -169,7 +240,7 @@ You should see lines like:
 ```
 migrations_applied
 Seeded default user: digest@yourdomain.com
-scheduler_started  jobs=['ingest_all_sources', 'generate_and_send_digest', 'cleanup_old_events']
+scheduler_started  jobs=['ingest_all_sources', 'generate_and_send_digest', 'sync_google_calendar', 'cleanup_old_events']
 app_startup  version=0.1.0
 ```
 
@@ -186,7 +257,7 @@ Open `http://your-vps-ip:8000/docs` in a browser — you'll see the full Swagger
 
 ---
 
-## 6. Trigger a Test Digest
+## 7. Trigger a Test Digest
 
 Don't wait until Tuesday to find out if email is working. Trigger it manually:
 
@@ -219,7 +290,53 @@ Check your inbox — the digest should arrive within a minute.
 
 ---
 
-## 7. Routine Operations
+## 8. (Optional) Verify Google Calendar Publishing
+
+If `GOOGLE_CALENDAR_ENABLED=true`, verify the calendar integration before waiting for the scheduled sync.
+
+**Preview the next sync without writing to Google Calendar:**
+
+```bash
+curl -H "x-api-key: YOUR_ADMIN_API_KEY" \
+  http://your-vps-ip:8000/admin/calendar/preview
+```
+
+You should get JSON with:
+
+- `selected_count`
+- `created_count`
+- `updated_count`
+- `deleted_count`
+
+**Run a manual sync now:**
+
+```bash
+curl -X POST -H "x-api-key: YOUR_ADMIN_API_KEY" \
+  http://your-vps-ip:8000/admin/calendar/sync
+```
+
+**Check current status:**
+
+```bash
+curl -H "x-api-key: YOUR_ADMIN_API_KEY" \
+  http://your-vps-ip:8000/admin/calendar/status
+```
+
+Successful logs look like:
+
+```text
+google_calendar_sync_complete  selected=12 created=12 updated=0 deleted=0
+```
+
+Then open Google Calendar and confirm the target secondary calendar contains:
+
+- concise `What:` and `Why it fits:` text
+- event/source links
+- a Google Maps link when location data exists
+
+---
+
+## 9. Routine Operations
 
 **View logs:**
 
@@ -247,6 +364,7 @@ docker compose up -d --build app
 |---|---|
 | Ingest all sources | Daily at 6:00 AM |
 | Generate and send digest | Tuesday and Friday at 8:00 AM |
+| Sync Google Calendar | Daily at 7:00 AM |
 | Archive old events | Sunday at 3:00 AM |
 
 **Manually trigger ingestion:**
@@ -277,13 +395,19 @@ SELECT source_name, max(ingested_at) FROM event_sources GROUP BY source_name;
 -- Recent digests
 SELECT id, status, sent_at, created_at FROM digests ORDER BY created_at DESC LIMIT 10;
 
+-- Recent Google Calendar sync runs
+SELECT trigger, status, started_at, selected_count, created_count, updated_count, deleted_count
+FROM calendar_sync_runs
+ORDER BY started_at DESC
+LIMIT 10;
+
 -- Feedback summary
 SELECT feedback_type, count(*) FROM feedback GROUP BY feedback_type;
 ```
 
 ---
 
-## 8. (Optional) Add HTTPS with Nginx
+## 10. (Optional) Add HTTPS with Nginx
 
 For a proper domain + TLS, install Nginx and Certbot on the VPS:
 
@@ -323,7 +447,7 @@ docker compose restart app
 
 ---
 
-## 9. Customizing the Recipient
+## 11. Customizing the Recipient
 
 Currently the digest is sent from `FROM_EMAIL` to `FROM_EMAIL` (same address). To send to a different inbox, add a `TO_EMAIL` variable to `.env` and update [`src/jobs/digest_job.py`](../src/jobs/digest_job.py):
 
@@ -345,7 +469,7 @@ to_email: str = ""  # defaults to from_email if blank
 
 ---
 
-## 10. Troubleshooting
+## 12. Troubleshooting
 
 **App won't start — `migration_failed`:**
 
@@ -377,6 +501,58 @@ docker compose build --no-cache app
 2. Verify the domain is verified in Resend (green checkmark)
 3. Check spam folder
 4. Confirm `FROM_EMAIL` exactly matches a verified domain in Resend
+
+**Google Calendar sync is enabled but fails immediately:**
+
+1. Check that all four required values are set in `.env`:
+   - `GOOGLE_CALENDAR_CLIENT_ID`
+   - `GOOGLE_CALENDAR_CLIENT_SECRET`
+   - `GOOGLE_CALENDAR_REFRESH_TOKEN`
+   - `GOOGLE_CALENDAR_ID`
+2. Confirm `GOOGLE_CALENDAR_ENABLED=true`
+3. Check app logs:
+
+```bash
+docker compose logs app | grep google_calendar
+```
+
+**Google Calendar preview works but sync creates zero events:**
+
+The most common causes are:
+
+- no curated events cleared `GOOGLE_CALENDAR_MIN_SCORE`
+- the event start dates fell outside `GOOGLE_CALENDAR_HORIZON_DAYS`
+- upstream ingestion returned sparse results that day
+
+Use:
+
+```bash
+curl -H "x-api-key: YOUR_ADMIN_API_KEY" \
+  http://your-vps-ip:8000/admin/calendar/preview
+```
+
+to inspect the selection counts before forcing a sync.
+
+**Google OAuth completed once, but later you see auth errors:**
+
+Your refresh token may be missing or revoked. Re-run:
+
+```bash
+python3 scripts/google_calendar_bootstrap.py path/to/oauth-client.json
+```
+
+then update the VPS `.env` values and restart the app:
+
+```bash
+docker compose restart app
+```
+
+**Calendar events appear but links are missing:**
+
+- event/source links require a canonical or source URL from ingestion
+- map links require venue/address data
+
+Missing links usually mean the upstream source data was incomplete, not that sync failed.
 
 **Out of disk space** (usually from Docker images):
 

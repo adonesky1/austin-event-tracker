@@ -5,3 +5,4 @@ def test_scheduler_registers_jobs():
     assert "ingest_all_sources" in job_ids
     assert "generate_and_send_digest" in job_ids
     assert "cleanup_old_events" in job_ids
+    assert "sync_google_calendar" in job_ids

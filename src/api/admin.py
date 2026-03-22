@@ -1,7 +1,12 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from src.api.deps import verify_admin_key
+from src.jobs.calendar_sync_job import (
+    get_latest_calendar_sync_status,
+    preview_google_calendar_sync,
+    run_google_calendar_sync,
+)
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(verify_admin_key)])
 
@@ -10,6 +15,20 @@ class SourceToggleResponse(BaseModel):
     source: str
     enabled: bool
     message: str
+
+
+class CalendarSyncResponse(BaseModel):
+    status: str
+    trigger: str
+    dry_run: bool
+    window_start: str
+    window_end: str
+    selected_count: int
+    created_count: int
+    updated_count: int
+    deleted_count: int
+    selected_events: list[dict]
+    error: str | None = None
 
 
 @router.get("/sources")
@@ -66,6 +85,29 @@ async def resend_digest(digest_id: str):
     return {"status": "ok", "message": f"Digest {digest_id} resent (TODO)"}
 
 
+@router.get("/calendar/status")
+async def calendar_status():
+    return await get_latest_calendar_sync_status()
+
+
+@router.get("/calendar/preview", response_model=CalendarSyncResponse)
+async def calendar_preview():
+    try:
+        preview = await preview_google_calendar_sync()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return _serialize_calendar_response(preview)
+
+
+@router.post("/calendar/sync", response_model=CalendarSyncResponse)
+async def calendar_sync():
+    result = await run_google_calendar_sync(trigger="manual")
+    if result.get("status") == "skipped":
+        raise HTTPException(status_code=400, detail=result.get("reason", "Sync skipped"))
+    return _serialize_calendar_response(result)
+
+
 @router.get("/events")
 async def list_events(
     category: str | None = None,
@@ -81,4 +123,24 @@ async def list_events(
         "limit": limit,
         "offset": offset,
         "filters": {"category": category, "city": city},
+    }
+
+
+def _serialize_calendar_response(payload: dict) -> dict:
+    return {
+        "status": payload["status"],
+        "trigger": payload["trigger"],
+        "dry_run": payload["dry_run"],
+        "window_start": payload["window_start"].isoformat()
+        if hasattr(payload["window_start"], "isoformat")
+        else payload["window_start"],
+        "window_end": payload["window_end"].isoformat()
+        if hasattr(payload["window_end"], "isoformat")
+        else payload["window_end"],
+        "selected_count": payload["selected_count"],
+        "created_count": payload["created_count"],
+        "updated_count": payload["updated_count"],
+        "deleted_count": payload["deleted_count"],
+        "selected_events": payload.get("selected_events", []),
+        "error": payload.get("error"),
     }

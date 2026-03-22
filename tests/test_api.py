@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from unittest.mock import AsyncMock
 
 
 @pytest.fixture
@@ -68,3 +69,64 @@ def test_feedback_valid_token_succeeds(client):
     response = client.get(f"/api/feedback/{event_id}?type=thumbs_up&token={token}")
     assert response.status_code == 200
     assert "Thanks" in response.text
+
+
+def test_calendar_status_with_key(client, monkeypatch):
+    async def fake_status():
+        return {"enabled": False, "latest_run": None}
+
+    monkeypatch.setattr("src.api.admin.get_latest_calendar_sync_status", fake_status)
+
+    response = client.get("/admin/calendar/status", headers={"x-api-key": "changeme"})
+    assert response.status_code == 200
+    assert response.json()["enabled"] is False
+
+
+def test_calendar_preview_with_key(client, monkeypatch):
+    monkeypatch.setattr(
+        "src.api.admin.preview_google_calendar_sync",
+        AsyncMock(
+            return_value={
+                "status": "success",
+                "trigger": "manual_preview",
+                "dry_run": True,
+                "window_start": "2026-03-22",
+                "window_end": "2026-04-12",
+                "selected_count": 2,
+                "created_count": 1,
+                "updated_count": 1,
+                "deleted_count": 0,
+                "selected_events": [],
+                "error": None,
+            }
+        ),
+    )
+
+    response = client.get("/admin/calendar/preview", headers={"x-api-key": "changeme"})
+    assert response.status_code == 200
+    assert response.json()["dry_run"] is True
+
+
+def test_calendar_sync_with_key(client, monkeypatch):
+    monkeypatch.setattr(
+        "src.api.admin.run_google_calendar_sync",
+        AsyncMock(
+            return_value={
+                "status": "success",
+                "trigger": "manual",
+                "dry_run": False,
+                "window_start": "2026-03-22",
+                "window_end": "2026-04-12",
+                "selected_count": 2,
+                "created_count": 1,
+                "updated_count": 0,
+                "deleted_count": 0,
+                "selected_events": [],
+                "error": None,
+            }
+        ),
+    )
+
+    response = client.post("/admin/calendar/sync", headers={"x-api-key": "changeme"})
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"

@@ -46,6 +46,16 @@ def test_source_health_model():
 
 
 def test_all_models_importable():
-    from src.models import Base, Digest, Event, EventSource, Feedback, SourceHealth, UserProfile
+    from src.models import (
+        Base,
+        CalendarSyncRun,
+        Digest,
+        Event,
+        EventSource,
+        Feedback,
+        SourceHealth,
+        UserProfile,
+    )
 
-    assert len(Base.metadata.tables) == 6
+    assert CalendarSyncRun.__tablename__ in Base.metadata.tables
+    assert len(Base.metadata.tables) == 7

@@ -2,6 +2,8 @@ import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from src.config.settings import Settings
+from src.jobs.calendar_sync_job import run_google_calendar_sync
 from src.jobs.cleanup_job import cleanup_old_events
 from src.jobs.digest_job import run_digest
 from src.jobs.ingest_job import run_ingestion
@@ -10,6 +12,7 @@ logger = structlog.get_logger()
 
 
 def create_scheduler(start: bool = True) -> AsyncIOScheduler:
+    settings = Settings()
     scheduler = AsyncIOScheduler(timezone="America/Chicago")
 
     # Daily ingestion at 6am CT
@@ -27,6 +30,17 @@ def create_scheduler(start: bool = True) -> AsyncIOScheduler:
         CronTrigger(day_of_week="tue,fri", hour=8, timezone="America/Chicago"),
         id="generate_and_send_digest",
         name="Generate and send digest",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        run_google_calendar_sync,
+        CronTrigger(
+            hour=settings.google_calendar_sync_hour,
+            timezone=settings.google_calendar_timezone,
+        ),
+        id="sync_google_calendar",
+        name="Sync Google Calendar",
         replace_existing=True,
     )
 
