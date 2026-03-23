@@ -9,6 +9,13 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture
+def admin_headers():
+    from src.config.settings import Settings
+
+    return {"x-api-key": Settings().admin_api_key}
+
+
 def test_health_endpoint(client):
     response = client.get("/health")
     assert response.status_code == 200
@@ -30,15 +37,15 @@ def test_admin_requires_api_key(client):
     assert response.status_code in (401, 403, 422)
 
 
-def test_admin_sources_with_key(client):
-    response = client.get("/admin/sources", headers={"x-api-key": "changeme"})
+def test_admin_sources_with_key(client, admin_headers):
+    response = client.get("/admin/sources", headers=admin_headers)
     assert response.status_code == 200
     data = response.json()
     assert "sources" in data
 
 
-def test_admin_events_with_key(client):
-    response = client.get("/admin/events", headers={"x-api-key": "changeme"})
+def test_admin_events_with_key(client, admin_headers):
+    response = client.get("/admin/events", headers=admin_headers)
     assert response.status_code == 200
 
 
@@ -56,12 +63,14 @@ def test_preferences_page(client):
 
 
 def test_feedback_valid_token_succeeds(client):
+    from src.config.settings import Settings
     from src.digest.generator import DigestGenerator
     import uuid
 
+    settings = Settings()
     generator = DigestGenerator(
         base_url="http://localhost:8000",
-        feedback_secret="changeme",
+        feedback_secret=settings.feedback_secret,
     )
     event_id = str(uuid.uuid4())
     token = generator.serializer.dumps(event_id)
@@ -71,18 +80,18 @@ def test_feedback_valid_token_succeeds(client):
     assert "Thanks" in response.text
 
 
-def test_calendar_status_with_key(client, monkeypatch):
+def test_calendar_status_with_key(client, admin_headers, monkeypatch):
     async def fake_status():
         return {"enabled": False, "latest_run": None}
 
     monkeypatch.setattr("src.api.admin.get_latest_calendar_sync_status", fake_status)
 
-    response = client.get("/admin/calendar/status", headers={"x-api-key": "changeme"})
+    response = client.get("/admin/calendar/status", headers=admin_headers)
     assert response.status_code == 200
     assert response.json()["enabled"] is False
 
 
-def test_calendar_preview_with_key(client, monkeypatch):
+def test_calendar_preview_with_key(client, admin_headers, monkeypatch):
     monkeypatch.setattr(
         "src.api.admin.preview_google_calendar_sync",
         AsyncMock(
@@ -102,12 +111,12 @@ def test_calendar_preview_with_key(client, monkeypatch):
         ),
     )
 
-    response = client.get("/admin/calendar/preview", headers={"x-api-key": "changeme"})
+    response = client.get("/admin/calendar/preview", headers=admin_headers)
     assert response.status_code == 200
     assert response.json()["dry_run"] is True
 
 
-def test_calendar_sync_with_key(client, monkeypatch):
+def test_calendar_sync_with_key(client, admin_headers, monkeypatch):
     monkeypatch.setattr(
         "src.api.admin.run_google_calendar_sync",
         AsyncMock(
@@ -127,6 +136,91 @@ def test_calendar_sync_with_key(client, monkeypatch):
         ),
     )
 
-    response = client.post("/admin/calendar/sync", headers={"x-api-key": "changeme"})
+    response = client.post("/admin/calendar/sync", headers=admin_headers)
     assert response.status_code == 200
     assert response.json()["status"] == "success"
+
+
+def test_admin_profile_with_key(client, admin_headers, monkeypatch):
+    monkeypatch.setattr(
+        "src.api.admin._with_session",
+        AsyncMock(
+            return_value={
+                "id": "00000000-0000-0000-0000-000000000001",
+                "email": "admin@example.com",
+                "city": "austin",
+                "adults": [{"age": 35}],
+                "children": [{"age": 8}],
+                "preferred_neighborhoods": ["Zilker"],
+                "max_distance_miles": 20,
+                "preferred_days": ["saturday"],
+                "preferred_times": ["afternoon"],
+                "budget": "moderate",
+                "interests": ["music"],
+                "dislikes": [],
+                "max_events_per_digest": 12,
+                "crowd_sensitivity": "medium",
+                "created_at": None,
+                "updated_at": None,
+            }
+        ),
+    )
+
+    response = client.get("/admin/profile", headers=admin_headers)
+    assert response.status_code == 200
+    assert response.json()["email"] == "admin@example.com"
+
+
+def test_admin_prompts_update_with_key(client, admin_headers, monkeypatch):
+    monkeypatch.setattr(
+        "src.api.admin._with_session",
+        AsyncMock(
+            return_value={
+                "key": "synthesis",
+                "system_prompt": "custom system",
+                "user_prompt_template": "custom user",
+                "is_default": False,
+                "updated_at": None,
+            }
+        ),
+    )
+
+    response = client.put(
+        "/admin/prompts/synthesis",
+        headers=admin_headers,
+        json={"system_prompt": "custom system", "user_prompt_template": "custom user"},
+    )
+    assert response.status_code == 200
+    assert response.json()["is_default"] is False
+
+
+def test_admin_tracked_items_create_with_key(client, admin_headers, monkeypatch):
+    monkeypatch.setattr(
+        "src.api.admin._with_session",
+        AsyncMock(
+            return_value={
+                "id": "00000000-0000-0000-0000-000000000010",
+                "label": "Spoon",
+                "kind": "artist",
+                "enabled": True,
+                "boost_weight": 0.25,
+                "notes": "Austin favorite",
+                "created_at": None,
+                "updated_at": None,
+            }
+        ),
+    )
+
+    response = client.post(
+        "/admin/tracked-items",
+        headers=admin_headers,
+        json={
+            "label": "Spoon",
+            "kind": "artist",
+            "enabled": True,
+            "boost_weight": 0.25,
+            "notes": "Austin favorite",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["label"] == "Spoon"

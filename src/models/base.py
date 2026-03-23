@@ -76,3 +76,10 @@ class SyncRunStatus(str, enum.Enum):
     SUCCESS = "success"
     FAILED = "failed"
     SKIPPED = "skipped"
+
+
+class TrackedItemKind(str, enum.Enum):
+    ARTIST = "artist"
+    VENUE = "venue"
+    KEYWORD = "keyword"
+    SERIES = "series"

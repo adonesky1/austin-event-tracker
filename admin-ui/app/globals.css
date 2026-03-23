@@ -1,0 +1,408 @@
+:root {
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --surface-muted: #eef2ff;
+  --border: #d7def0;
+  --text: #182235;
+  --muted: #5c6c8a;
+  --primary: #3257e8;
+  --primary-dark: #2443b7;
+  --success: #12774e;
+  --danger: #b42318;
+  --warning: #9a6700;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.app-shell {
+  width: min(1200px, calc(100vw - 24px));
+  margin: 0 auto;
+  padding: 24px 0 48px;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.app-title,
+.page-section h1,
+.signin-card h1 {
+  margin: 0;
+  font-size: clamp(1.75rem, 2vw, 2.25rem);
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.signed-in-email {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.nav-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.nav-link {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.nav-link-active {
+  color: var(--primary);
+  border-color: rgba(50, 87, 232, 0.35);
+  background: rgba(50, 87, 232, 0.08);
+}
+
+.app-main,
+.page-section,
+.stack-lg,
+.stack-md,
+.stack-sm {
+  display: flex;
+  flex-direction: column;
+}
+
+.stack-lg {
+  gap: 20px;
+}
+
+.stack-md {
+  gap: 14px;
+}
+
+.stack-sm {
+  gap: 10px;
+}
+
+.page-section {
+  gap: 20px;
+}
+
+.page-section-header p,
+.helper-text {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.card-grid,
+.metric-grid,
+.compact-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.metric-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.compact-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.info-card,
+.metric-card,
+.muted-card,
+.error-card,
+.success-banner,
+.signin-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+}
+
+.muted-card {
+  background: var(--surface-muted);
+}
+
+.error-card {
+  border-color: rgba(180, 35, 24, 0.2);
+  color: var(--danger);
+  background: rgba(180, 35, 24, 0.05);
+}
+
+.success-banner {
+  border-color: rgba(18, 119, 78, 0.2);
+  color: var(--success);
+  background: rgba(18, 119, 78, 0.06);
+}
+
+.metric-card strong {
+  display: block;
+  font-size: 1.75rem;
+  margin-top: 8px;
+}
+
+.metric-label {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field span {
+  font-weight: 600;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px 14px;
+  color: var(--text);
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+.code-textarea {
+  min-height: 320px;
+  font-family:
+    "SFMono-Regular",
+    ui-monospace,
+    Menlo,
+    Consolas,
+    monospace;
+  font-size: 0.92rem;
+}
+
+.checkbox-field {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding-top: 30px;
+}
+
+.checkbox-field input {
+  width: 18px;
+  height: 18px;
+}
+
+.action-row,
+.split-header,
+.detail-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.primary-button,
+.secondary-button,
+.danger-button {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primary-button {
+  background: var(--primary);
+  color: #fff;
+}
+
+.primary-button:hover {
+  background: var(--primary-dark);
+}
+
+.secondary-button {
+  background: #fff;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.danger-button {
+  background: rgba(180, 35, 24, 0.12);
+  color: var(--danger);
+}
+
+.primary-button:disabled,
+.secondary-button:disabled,
+.danger-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.status-ok {
+  background: rgba(18, 119, 78, 0.12);
+  color: var(--success);
+}
+
+.status-warn {
+  background: rgba(154, 103, 0, 0.12);
+  color: var(--warning);
+}
+
+.status-muted {
+  background: rgba(92, 108, 138, 0.14);
+  color: var(--muted);
+}
+
+.detail-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.detail-list div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-list dt {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.detail-list dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.success-text {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.error-text {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.signin-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.signin-card {
+  width: min(480px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    width: min(100vw, calc(100vw - 16px));
+    padding: 16px 0 32px;
+  }
+
+  .app-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-actions {
+    justify-content: flex-start;
+  }
+
+  .info-card,
+  .metric-card,
+  .muted-card,
+  .error-card,
+  .success-banner,
+  .signin-card {
+    padding: 16px;
+  }
+
+  .action-row,
+  .split-header,
+  .detail-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .danger-button {
+    width: 100%;
+  }
+}

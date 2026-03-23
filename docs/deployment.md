@@ -407,7 +407,75 @@ SELECT feedback_type, count(*) FROM feedback GROUP BY feedback_type;
 
 ---
 
-## 10. (Optional) Add HTTPS with Nginx
+## 10. (Optional) Deploy the Admin UI on Vercel
+
+If you want a proper operator UI for preferences, prompts, tracked items, source status, and calendar sync, deploy the separate **`admin-ui/`** app to Vercel and keep the FastAPI backend on the VPS.
+
+### Architecture
+
+- **VPS**: FastAPI API, APScheduler, Playwright scraping, Postgres
+- **Vercel**: `admin-ui/` Next.js app only
+
+Recommended domains:
+
+- `api.yourdomain.com` -> VPS
+- `admin.yourdomain.com` -> Vercel
+
+### Why keep the split?
+
+The backend is not just a stateless API. It runs in-process scheduled jobs and browser automation, so it still belongs on the VPS. The admin UI is a normal Next.js app and is a good fit for Vercel previews and fast frontend deploys.
+
+### Vercel root directory
+
+Create a separate Vercel project and set:
+
+- **Root Directory** = `admin-ui`
+
+### Admin UI environment variables
+
+Set these in Vercel:
+
+```bash
+BACKEND_BASE_URL=https://api.yourdomain.com
+BACKEND_ADMIN_API_KEY=the-same-value-as-ADMIN_API_KEY-on-the-vps
+AUTH_SECRET=generate-a-long-random-string
+AUTH_GOOGLE_ID=from-google-cloud-oauth-client
+AUTH_GOOGLE_SECRET=from-google-cloud-oauth-client
+ADMIN_ALLOWED_EMAILS=you@example.com,other-admin@example.com
+```
+
+Notes:
+
+- `BACKEND_ADMIN_API_KEY` should match the VPS `ADMIN_API_KEY`
+- this key stays **server-side in Vercel only**
+- do **not** expose the backend admin key in browser-side code or public env vars
+- `ADMIN_ALLOWED_EMAILS` controls which Google accounts may enter the admin UI
+
+### Google auth setup
+
+In Google Cloud:
+
+1. Reuse or create an OAuth client for the admin UI
+2. Add your Vercel callback URL, e.g.
+   - `https://admin.yourdomain.com/api/auth/callback/google`
+3. Copy the client ID and secret into `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`
+
+### First deploy checklist
+
+After deploying the UI:
+
+1. sign in with an allowed Google account
+2. verify the dashboard loads
+3. save a preference change under **Preferences**
+4. update and reset the synthesis prompt under **Prompts**
+5. add a tracked item under **Tracked Items**
+6. open **Calendar** and run a preview
+
+If those succeed, the Vercel UI -> VPS API proxy path is working.
+
+---
+
+## 11. (Optional) Add HTTPS with Nginx
 
 For a proper domain + TLS, install Nginx and Certbot on the VPS:
 
@@ -447,7 +515,7 @@ docker compose restart app
 
 ---
 
-## 11. Customizing the Recipient
+## 12. Customizing the Recipient
 
 Currently the digest is sent from `FROM_EMAIL` to `FROM_EMAIL` (same address). To send to a different inbox, add a `TO_EMAIL` variable to `.env` and update [`src/jobs/digest_job.py`](../src/jobs/digest_job.py):
 
@@ -469,7 +537,7 @@ to_email: str = ""  # defaults to from_email if blank
 
 ---
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 
 **App won't start — `migration_failed`:**
 

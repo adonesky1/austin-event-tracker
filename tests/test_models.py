@@ -53,9 +53,13 @@ def test_all_models_importable():
         Event,
         EventSource,
         Feedback,
+        PromptConfig,
         SourceHealth,
+        TrackedItem,
         UserProfile,
     )
 
     assert CalendarSyncRun.__tablename__ in Base.metadata.tables
-    assert len(Base.metadata.tables) == 7
+    assert PromptConfig.__tablename__ in Base.metadata.tables
+    assert TrackedItem.__tablename__ in Base.metadata.tables
+    assert len(Base.metadata.tables) == 9

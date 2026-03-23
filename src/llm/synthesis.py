@@ -40,8 +40,15 @@ Events:
 
 
 class EventSynthesizer:
-    def __init__(self, llm_client: LLMClient):
+    def __init__(
+        self,
+        llm_client: LLMClient,
+        system_prompt: str = SYNTHESIS_SYSTEM_PROMPT,
+        user_prompt_template: str = SYNTHESIS_USER_PROMPT,
+    ):
         self.llm_client = llm_client
+        self.system_prompt = system_prompt
+        self.user_prompt_template = user_prompt_template
 
     async def enrich_events(
         self,
@@ -99,7 +106,7 @@ class EventSynthesizer:
             for i, e in enumerate(events)
         ]
 
-        prompt = SYNTHESIS_USER_PROMPT.format(
+        prompt = self.user_prompt_template.format(
             adults=f"{adults_count} adult(s)",
             children_ages=", ".join(children_ages) if children_ages else "no children",
             interests=", ".join(profile.interests or []),
@@ -109,7 +116,7 @@ class EventSynthesizer:
             events_json=json.dumps(events_data, indent=2),
         )
 
-        response = await self.llm_client.complete_json(prompt, system=SYNTHESIS_SYSTEM_PROMPT)
+        response = await self.llm_client.complete_json(prompt, system=self.system_prompt)
         return response.get("events", [])
 
 

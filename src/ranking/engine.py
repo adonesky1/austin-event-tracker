@@ -13,12 +13,13 @@ class RankingEngine:
         events: list[NormalizedEvent],
         profile: UserProfileSchema,
         feedback_history: list[dict] | None = None,
+        tracked_items: list | None = None,
     ) -> list[tuple[NormalizedEvent, float]]:
         feedback_history = feedback_history or []
         scored: list[tuple[NormalizedEvent, float]] = []
 
         for event in events:
-            rule_score = compute_rule_score(event, profile)
+            rule_score = compute_rule_score(event, profile, tracked_items=tracked_items)
             fb_adjusted = adjust_score_for_feedback(rule_score, event, feedback_history)
 
             # LLM family_score from synthesis layer (set during enrichment)

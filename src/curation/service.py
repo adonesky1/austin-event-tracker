@@ -2,15 +2,21 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 import structlog
-
+from src.admin.service import get_or_create_profile, list_tracked_items
 from src.config.city import load_city_config
 from src.config.settings import Settings
-from src.curation.profile import build_default_profile
+from src.curation.profile import build_default_profile, user_profile_to_schema
 from src.dedupe.engine import DedupeEngine
 from src.ingestion.pipeline import IngestionPipeline
 from src.jobs.ingest_job import build_registry
 from src.llm.anthropic import AnthropicLLMClient
-from src.llm.synthesis import EventSynthesizer
+from src.llm.prompt_loader import get_effective_synthesis_prompts
+from src.llm.synthesis import (
+    SYNTHESIS_SYSTEM_PROMPT,
+    SYNTHESIS_USER_PROMPT,
+    EventSynthesizer,
+)
+from src.models.database import create_engine, create_session_factory
 from src.ranking.engine import RankingEngine
 from src.schemas.event import NormalizedEvent
 from src.schemas.user import UserProfileSchema
@@ -65,6 +71,29 @@ class CurationService:
         self,
         profile: UserProfileSchema | None = None,
     ) -> CurationResult:
+        tracked_items = []
+        system_prompt = None
+        user_prompt_template = None
+
+        if profile is None:
+            engine = None
+            try:
+                engine = create_engine(self.settings)
+                Session = create_session_factory(engine)
+                async with Session() as session:
+                    db_profile = await get_or_create_profile(session, self.settings)
+                    profile = user_profile_to_schema(db_profile)
+                    tracked_items = await list_tracked_items(session)
+                    system_prompt, user_prompt_template = await get_effective_synthesis_prompts(
+                        session
+                    )
+            except Exception as exc:
+                logger.error("curation_db_profile_load_failed", error=str(exc))
+                profile = build_default_profile(self.settings)
+            finally:
+                if engine is not None:
+                    await engine.dispose()
+
         profile = profile or build_default_profile(self.settings)
         city_config = load_city_config(profile.city or self.settings.default_city)
         registry = build_registry(self.settings)
@@ -72,8 +101,13 @@ class CurationService:
 
         ingested = await pipeline.ingest(city_config, persist=False)
         deduped = DedupeEngine(llm_client=None).deduplicate(ingested)
-        enriched = await self._enrich_events(deduped, profile)
-        ranked = await RankingEngine().rank_events(enriched, profile)
+        enriched = await self._enrich_events(
+            deduped,
+            profile,
+            system_prompt=system_prompt,
+            user_prompt_template=user_prompt_template,
+        )
+        ranked = await RankingEngine().rank_events(enriched, profile, tracked_items=tracked_items)
 
         return CurationResult(
             profile=profile,
@@ -85,6 +119,8 @@ class CurationService:
         self,
         events: list[NormalizedEvent],
         profile: UserProfileSchema,
+        system_prompt: str | None = None,
+        user_prompt_template: str | None = None,
     ) -> list[NormalizedEvent]:
         if not events:
             return events
@@ -94,7 +130,11 @@ class CurationService:
             return events
 
         client = AnthropicLLMClient(api_key=self.settings.anthropic_api_key)
-        synthesizer = EventSynthesizer(llm_client=client)
+        synthesizer = EventSynthesizer(
+            llm_client=client,
+            system_prompt=system_prompt or SYNTHESIS_SYSTEM_PROMPT,
+            user_prompt_template=user_prompt_template or SYNTHESIS_USER_PROMPT,
+        )
         return await synthesizer.enrich_events(events, profile)
 
 

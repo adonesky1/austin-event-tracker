@@ -1,4 +1,3 @@
-from src.curation.profile import build_default_profile
-from src.curation.service import CurationResult, CurationService
+from src.curation.profile import build_default_profile, user_profile_to_schema
 
-__all__ = ["build_default_profile", "CurationResult", "CurationService"]
+__all__ = ["build_default_profile", "user_profile_to_schema"]

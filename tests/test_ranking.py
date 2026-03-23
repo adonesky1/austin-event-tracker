@@ -1,5 +1,6 @@
 import pytest
 from datetime import datetime, timezone, timedelta
+from types import SimpleNamespace
 
 from src.schemas.event import NormalizedEvent
 from src.schemas.user import UserProfileSchema
@@ -71,6 +72,26 @@ def test_preferred_neighborhood_boosts_score(user_profile):
     zilker_score = compute_rule_score(zilker, user_profile)
     remote_score = compute_rule_score(remote, user_profile)
     assert zilker_score > remote_score
+
+
+def test_tracked_item_boost_applies_best_match(user_profile):
+    event = make_event(
+        title="ACL Festival Aftershow",
+        description="One-night celebration with local bands",
+        tags=["music", "festival"],
+    )
+    base_score = compute_rule_score(event, user_profile, tracked_items=[])
+    boosted_score = compute_rule_score(
+        event,
+        user_profile,
+        tracked_items=[
+            SimpleNamespace(label="ACL", enabled=True, boost_weight=0.12),
+            SimpleNamespace(label="festival", enabled=True, boost_weight=0.2),
+        ],
+    )
+
+    assert boosted_score > base_score
+    assert round(boosted_score - base_score, 2) >= 0.12
 
 
 def test_thumbs_up_boosts_similar():

@@ -17,4 +17,5 @@ htmlcov/
 *.db
 *.sqlite3
 node_modules/
+.next/
 .DS_Store

@@ -1,7 +1,9 @@
 import pytest
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+from src.llm.prompt_loader import get_effective_synthesis_prompts
 from src.schemas.event import NormalizedEvent
 from src.schemas.user import UserProfileSchema
 from src.llm.synthesis import EventSynthesizer
@@ -95,3 +97,36 @@ async def test_synthesizer_batches_large_inputs(profile):
 
     # Should have been called twice for 30 events with batch_size=15
     assert mock_llm.complete_json.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_synthesizer_uses_custom_prompt_templates(profile):
+    mock_llm = AsyncMock()
+    mock_llm.complete_json = AsyncMock(return_value={"events": []})
+
+    synthesizer = EventSynthesizer(
+        llm_client=mock_llm,
+        system_prompt="SYSTEM OVERRIDE",
+        user_prompt_template="Custom prompt for {count} events: {events_json}",
+    )
+    await synthesizer.enrich_events([make_event()], profile)
+
+    call = mock_llm.complete_json.await_args
+    assert call.args[0].startswith("Custom prompt for 1 events:")
+    assert call.kwargs["system"] == "SYSTEM OVERRIDE"
+
+
+@pytest.mark.asyncio
+async def test_prompt_loader_returns_override(monkeypatch):
+    async def fake_get_prompt_config(session, key):
+        assert key == "synthesis"
+        return SimpleNamespace(
+            system_prompt="db system",
+            user_prompt_template="db user",
+        )
+
+    monkeypatch.setattr("src.llm.prompt_loader.get_prompt_config", fake_get_prompt_config)
+
+    system_prompt, user_prompt = await get_effective_synthesis_prompts(object())
+    assert system_prompt == "db system"
+    assert user_prompt == "db user"

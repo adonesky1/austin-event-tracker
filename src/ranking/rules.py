@@ -11,7 +11,11 @@ BUDGET_PRICE_LIMITS = {
 }
 
 
-def compute_rule_score(event: NormalizedEvent, profile: UserProfileSchema) -> float:
+def compute_rule_score(
+    event: NormalizedEvent,
+    profile: UserProfileSchema,
+    tracked_items: list | None = None,
+) -> float:
     scores = {
         "category": _category_score(event, profile),
         "day": _day_score(event, profile),
@@ -31,6 +35,7 @@ def compute_rule_score(event: NormalizedEvent, profile: UserProfileSchema) -> fl
     }
 
     total = sum(scores[k] * weights[k] for k in scores)
+    total += _tracked_item_boost(event, tracked_items or [])
     return round(min(max(total, 0.0), 1.0), 4)
 
 
@@ -117,3 +122,26 @@ def _recency_score(event: NormalizedEvent) -> float:
     elif days_away <= 14:
         return 0.6
     return 0.4
+
+
+def _tracked_item_boost(event: NormalizedEvent, tracked_items: list) -> float:
+    searchable = " ".join(
+        [
+            event.title or "",
+            event.description or "",
+            event.venue_name or "",
+            " ".join(event.tags or []),
+        ]
+    ).lower()
+
+    best = 0.0
+    for item in tracked_items:
+        if not getattr(item, "enabled", False):
+            continue
+        label = (getattr(item, "label", "") or "").strip().lower()
+        if not label:
+            continue
+        if label in searchable:
+            best = max(best, float(getattr(item, "boost_weight", 0.15)))
+
+    return best

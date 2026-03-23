@@ -1,11 +1,36 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from src.admin.service import (
+    create_tracked_item,
+    delete_tracked_item,
+    get_or_create_profile,
+    serialize_profile,
+    serialize_prompt_config,
+    serialize_tracked_item,
+    update_profile,
+    update_prompt_config,
+    update_tracked_item,
+)
 from src.api.deps import verify_admin_key
+from src.config.settings import Settings
 from src.jobs.calendar_sync_job import (
     get_latest_calendar_sync_status,
     preview_google_calendar_sync,
     run_google_calendar_sync,
+)
+from src.llm.prompt_loader import get_effective_synthesis_prompts
+from src.models.database import create_engine, create_session_factory
+from src.schemas.admin import (
+    PromptConfigResponse,
+    PromptConfigUpdate,
+    TrackedItemCreate,
+    TrackedItemResponse,
+    TrackedItemUpdate,
+    UserProfileResponse,
+    UserProfileUpdate,
 )
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(verify_admin_key)])
@@ -29,6 +54,55 @@ class CalendarSyncResponse(BaseModel):
     deleted_count: int
     selected_events: list[dict]
     error: str | None = None
+
+
+@router.get("/profile", response_model=UserProfileResponse)
+async def admin_profile():
+    return await _with_session(_load_profile)
+
+
+@router.patch("/profile", response_model=UserProfileResponse)
+async def admin_profile_update(payload: UserProfileUpdate):
+    return await _with_session(lambda session, settings: _update_profile(session, settings, payload))
+
+
+@router.get("/prompts/synthesis", response_model=PromptConfigResponse)
+async def admin_prompt_synthesis():
+    return await _with_session(_load_synthesis_prompt)
+
+
+@router.put("/prompts/synthesis", response_model=PromptConfigResponse)
+async def admin_prompt_synthesis_update(payload: PromptConfigUpdate):
+    return await _with_session(
+        lambda session, settings: _update_synthesis_prompt(session, settings, payload)
+    )
+
+
+@router.post("/prompts/synthesis/reset", response_model=PromptConfigResponse)
+async def admin_prompt_synthesis_reset():
+    return await _with_session(_reset_synthesis_prompt)
+
+
+@router.get("/tracked-items", response_model=list[TrackedItemResponse])
+async def admin_tracked_items():
+    return await _with_session(_list_tracked_items)
+
+
+@router.post("/tracked-items", response_model=TrackedItemResponse)
+async def admin_tracked_items_create(payload: TrackedItemCreate):
+    return await _with_session(lambda session, settings: _create_tracked_item(session, payload))
+
+
+@router.patch("/tracked-items/{item_id}", response_model=TrackedItemResponse)
+async def admin_tracked_items_update(item_id: uuid.UUID, payload: TrackedItemUpdate):
+    return await _with_session(
+        lambda session, settings: _update_tracked_item(session, item_id, payload)
+    )
+
+
+@router.delete("/tracked-items/{item_id}")
+async def admin_tracked_items_delete(item_id: uuid.UUID):
+    return await _with_session(lambda session, settings: _delete_tracked_item(session, item_id))
 
 
 @router.get("/sources")
@@ -124,6 +198,99 @@ async def list_events(
         "offset": offset,
         "filters": {"category": category, "city": city},
     }
+
+
+async def _with_session(callback):
+    settings = Settings()
+    engine = create_engine(settings)
+    Session = create_session_factory(engine)
+    try:
+        async with Session() as session:
+            return await callback(session, settings)
+    finally:
+        await engine.dispose()
+
+
+async def _load_profile(session, settings):
+    profile = await get_or_create_profile(session, settings)
+    return serialize_profile(profile)
+
+
+async def _update_profile(session, settings, payload: UserProfileUpdate):
+    profile = await update_profile(session, settings, payload)
+    return serialize_profile(profile)
+
+
+async def _load_synthesis_prompt(session, settings):
+    system_prompt, user_prompt_template = await get_effective_synthesis_prompts(session)
+    prompt = await _get_prompt_record(session)
+    return serialize_prompt_config(
+        prompt,
+        key="synthesis",
+        system_prompt=system_prompt,
+        user_prompt_template=user_prompt_template,
+    )
+
+
+async def _update_synthesis_prompt(session, settings, payload: PromptConfigUpdate):
+    prompt = await update_prompt_config(
+        session,
+        "synthesis",
+        payload.system_prompt,
+        payload.user_prompt_template,
+    )
+    return serialize_prompt_config(
+        prompt,
+        key="synthesis",
+        system_prompt=prompt.system_prompt,
+        user_prompt_template=prompt.user_prompt_template,
+    )
+
+
+async def _reset_synthesis_prompt(session, settings):
+    from src.admin.service import get_prompt_config, reset_prompt_config
+
+    await reset_prompt_config(session, "synthesis")
+    system_prompt, user_prompt_template = await get_effective_synthesis_prompts(session)
+    prompt = await get_prompt_config(session, "synthesis")
+    return serialize_prompt_config(
+        prompt,
+        key="synthesis",
+        system_prompt=system_prompt,
+        user_prompt_template=user_prompt_template,
+    )
+
+
+async def _list_tracked_items(session, settings):
+    from src.admin.service import list_tracked_items
+
+    items = await list_tracked_items(session)
+    return [serialize_tracked_item(item) for item in items]
+
+
+async def _create_tracked_item(session, payload: TrackedItemCreate):
+    item = await create_tracked_item(session, payload)
+    return serialize_tracked_item(item)
+
+
+async def _update_tracked_item(session, item_id: uuid.UUID, payload: TrackedItemUpdate):
+    item = await update_tracked_item(session, item_id, payload)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Tracked item not found")
+    return serialize_tracked_item(item)
+
+
+async def _delete_tracked_item(session, item_id: uuid.UUID):
+    deleted = await delete_tracked_item(session, item_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Tracked item not found")
+    return {"status": "deleted"}
+
+
+async def _get_prompt_record(session):
+    from src.admin.service import get_prompt_config
+
+    return await get_prompt_config(session, "synthesis")
 
 
 def _serialize_calendar_response(payload: dict) -> dict:
