@@ -17,36 +17,30 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Enums
-    eventcategory = postgresql.ENUM(
+    # Create enum types explicitly first
+    postgresql.ENUM(
         "music", "arts", "festivals", "theatre", "kids", "outdoor", "seasonal", "community",
         name="eventcategory",
-    )
-    sourcetype = postgresql.ENUM("api", "feed", "scraper", name="sourcetype")
-    budgetlevel = postgresql.ENUM("free", "low", "moderate", "any", name="budgetlevel")
-    crowdsensitivity = postgresql.ENUM("low", "medium", "high", name="crowdsensitivity")
-    feedbacktype = postgresql.ENUM(
+    ).create(op.get_bind(), checkfirst=True)
+    postgresql.ENUM("api", "feed", "scraper", name="sourcetype").create(op.get_bind(), checkfirst=True)
+    postgresql.ENUM("free", "low", "moderate", "any", name="budgetlevel").create(op.get_bind(), checkfirst=True)
+    postgresql.ENUM("low", "medium", "high", name="crowdsensitivity").create(op.get_bind(), checkfirst=True)
+    postgresql.ENUM(
         "thumbs_up", "thumbs_down", "more_like_this", "less_like_this",
         "too_far", "too_expensive", "wrong_age", "already_knew",
         name="feedbacktype",
-    )
-    digeststatus = postgresql.ENUM("draft", "sent", "failed", name="digeststatus")
-    sourcehealthstatus = postgresql.ENUM(
+    ).create(op.get_bind(), checkfirst=True)
+    postgresql.ENUM("draft", "sent", "failed", name="digeststatus").create(op.get_bind(), checkfirst=True)
+    postgresql.ENUM(
         "healthy", "degraded", "failing", "disabled", name="sourcehealthstatus"
-    )
-
-    for enum in [eventcategory, sourcetype, budgetlevel, crowdsensitivity,
-                 feedbacktype, digeststatus, sourcehealthstatus]:
-        enum.create(op.get_bind(), checkfirst=True)
+    ).create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "events",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("title", sa.Text, nullable=False),
         sa.Column("description", sa.Text),
-        sa.Column("category", sa.Enum("music", "arts", "festivals", "theatre", "kids",
-                                      "outdoor", "seasonal", "community",
-                                      name="eventcategory", create_type=False), nullable=False),
+        sa.Column("category", postgresql.ENUM(name="eventcategory", create_type=False), nullable=False),
         sa.Column("subcategory", sa.String(100)),
         sa.Column("start_datetime", sa.DateTime(timezone=True), nullable=False),
         sa.Column("end_datetime", sa.DateTime(timezone=True)),
@@ -79,7 +73,7 @@ def upgrade() -> None:
         sa.Column("event_id", postgresql.UUID(as_uuid=True),
                   sa.ForeignKey("events.id")),
         sa.Column("source_name", sa.String(100), nullable=False),
-        sa.Column("source_type", sa.Enum("api", "feed", "scraper", name="sourcetype", create_type=False)),
+        sa.Column("source_type", postgresql.ENUM(name="sourcetype", create_type=False)),
         sa.Column("source_url", sa.Text),
         sa.Column("raw_payload", postgresql.JSONB),
         sa.Column("title", sa.Text),
@@ -99,13 +93,11 @@ def upgrade() -> None:
         sa.Column("max_distance_miles", sa.Integer, default=30),
         sa.Column("preferred_days", sa.ARRAY(sa.String)),
         sa.Column("preferred_times", sa.ARRAY(sa.String)),
-        sa.Column("budget", sa.Enum("free", "low", "moderate", "any", name="budgetlevel", create_type=False),
-                  default="moderate"),
+        sa.Column("budget", postgresql.ENUM(name="budgetlevel", create_type=False), default="moderate"),
         sa.Column("interests", sa.ARRAY(sa.String)),
         sa.Column("dislikes", sa.ARRAY(sa.String)),
         sa.Column("max_events_per_digest", sa.Integer, default=15),
-        sa.Column("crowd_sensitivity",
-                  sa.Enum("low", "medium", "high", name="crowdsensitivity", create_type=False),
+        sa.Column("crowd_sensitivity", postgresql.ENUM(name="crowdsensitivity", create_type=False),
                   default="medium"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
@@ -121,8 +113,7 @@ def upgrade() -> None:
         sa.Column("plaintext_content", sa.Text),
         sa.Column("event_ids", sa.ARRAY(postgresql.UUID(as_uuid=True))),
         sa.Column("sent_at", sa.DateTime(timezone=True)),
-        sa.Column("status", sa.Enum("draft", "sent", "failed", name="digeststatus", create_type=False),
-                  default="draft"),
+        sa.Column("status", postgresql.ENUM(name="digeststatus", create_type=False), default="draft"),
         sa.Column("window_start", sa.Date),
         sa.Column("window_end", sa.Date),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
@@ -135,11 +126,8 @@ def upgrade() -> None:
                   sa.ForeignKey("user_profiles.id")),
         sa.Column("event_id", postgresql.UUID(as_uuid=True),
                   sa.ForeignKey("events.id")),
-        sa.Column("feedback_type", sa.Enum(
-            "thumbs_up", "thumbs_down", "more_like_this", "less_like_this",
-            "too_far", "too_expensive", "wrong_age", "already_knew",
-            name="feedbacktype", create_type=False,
-        ), nullable=False),
+        sa.Column("feedback_type", postgresql.ENUM(name="feedbacktype", create_type=False),
+                  nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
 
@@ -151,9 +139,7 @@ def upgrade() -> None:
         sa.Column("last_success_at", sa.DateTime(timezone=True)),
         sa.Column("events_found", sa.Integer, default=0),
         sa.Column("errors", sa.Text),
-        sa.Column("status",
-                  sa.Enum("healthy", "degraded", "failing", "disabled",
-                          name="sourcehealthstatus", create_type=False),
+        sa.Column("status", postgresql.ENUM(name="sourcehealthstatus", create_type=False),
                   default="healthy"),
     )
 
