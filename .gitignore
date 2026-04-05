@@ -19,3 +19,5 @@ htmlcov/
 node_modules/
 .next/
 .DS_Store
+google-client/
+client_secret*.json

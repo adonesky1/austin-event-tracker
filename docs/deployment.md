@@ -18,6 +18,8 @@ Any cheap VPS works. Recommendations:
 
 **Minimum requirements:** 1 vCPU, 1GB RAM, 10GB disk. Ubuntu 22.04 LTS recommended.
 
+Do **not** use a 512MB VPS for this stack. The first Docker build installs Chromium for Playwright, and 512MB instances commonly get killed by the kernel for running out of memory during that step.
+
 ### A Domain (Required for Email)
 
 Resend requires a verified domain to send email. You cannot use a Gmail/Yahoo address as the sender. A cheap domain ($10-12/yr from Namecheap or Cloudflare) is sufficient. You'll add 2-3 DNS records.
@@ -98,7 +100,10 @@ In Google Cloud:
 
 1. Create or select a project
 2. Enable **Google Calendar API**
-3. Configure the OAuth consent screen
+3. Configure the OAuth consent screen:
+   - choose **External** if you're using a personal Gmail account
+   - leave the app in **Testing** for personal setup
+   - add your own Google account under **Test users** before running the bootstrap helper
 4. Create a **Desktop app** OAuth client
 5. Download the OAuth client JSON file
 
@@ -107,7 +112,29 @@ In Google Cloud:
 From your local clone of the repo:
 
 ```bash
-python3 scripts/google_calendar_bootstrap.py path/to/oauth-client.json
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+python scripts/google_calendar_bootstrap.py path/to/oauth-client.json
+```
+
+If Google Cloud won't let you download the OAuth client JSON, `clientId` alone is not enough for this step. The bootstrap script also needs the OAuth client secret and redirect metadata. In practice, the easiest fallback is to open the OAuth client details in Google Cloud and either:
+
+- download the JSON from there if the option appears
+- or create a fresh **Desktop app** OAuth client and use that client ID and client secret to assemble a small JSON file locally
+
+Example shape:
+
+```json
+{
+  "installed": {
+    "client_id": "YOUR_CLIENT_ID",
+    "client_secret": "YOUR_CLIENT_SECRET",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "redirect_uris": ["http://localhost"]
+  }
+}
 ```
 
 This will:
@@ -128,10 +155,22 @@ This app does **not** manage subscriber invites yet.
 
 To keep the calendar invite-only:
 
-1. Open Google Calendar in the browser
-2. Find the new secondary calendar
-3. Open **Settings and sharing**
-4. Add the Google accounts that should have reader access
+1. Open Google Calendar on a computer: <https://calendar.google.com/>
+2. In the left sidebar, find **My calendars**.
+3. Locate the secondary calendar created by the bootstrap helper, usually **Austin Curated Events**.
+4. Hover over that calendar, click the three-dot menu, then click **Settings and sharing**.
+5. In the left-side settings menu, open **Share with specific people or groups**.
+6. Click **Add people and groups**.
+7. Enter the Gmail address or Google Group for each person who should be able to read the calendar.
+8. For a read-only shared calendar, choose **See all event details**.
+9. Click **Send**. Google Calendar emails each person a sharing invite.
+10. Ask each recipient to open the email and accept the invitation so the calendar appears in their Google Calendar list.
+
+To keep the calendar private:
+
+- Do **not** enable **Make available to public**
+- Do **not** enable **Make available for your organization** unless you intentionally want everyone in your Google Workspace to see it
+- If you need to remove someone later, return to **Settings and sharing** and use **Remove** next to their address under **Share with specific people or groups**
 
 ---
 
@@ -140,9 +179,16 @@ To keep the calendar invite-only:
 **Clone the repo:**
 
 ```bash
-git clone https://github.com/you/austin-event-tracker.git
+git clone https://github.com/adonesky1/austin-event-tracker.git
 cd austin-event-tracker
 ```
+
+If you're deploying from your own fork, replace `adonesky1` with your GitHub username or org. Do **not** type the literal placeholder `you`.
+
+If the repo is private, GitHub will not accept your account password for HTTPS clones. Use either:
+
+- an SSH clone URL, e.g. `git clone git@github.com:your-user/austin-event-tracker.git`
+- or a GitHub personal access token (PAT) instead of a password
 
 **Create your `.env` file:**
 
@@ -562,6 +608,47 @@ Chromium inside Docker sometimes needs extra flags. Check logs for `BrowserType.
 ```bash
 docker compose build --no-cache app
 ```
+
+**`docker compose up -d --build` fails with `signal: killed`:**
+
+This usually means the VPS ran out of RAM during the Docker build, most often while installing Chromium for Playwright. A `512MB` VPS is below the supported minimum for this project.
+
+Best fix:
+
+1. Resize the VPS to at least `1GB RAM` (`2GB` is more comfortable)
+2. Reconnect and rerun:
+
+```bash
+docker compose up -d --build
+```
+
+Temporary workaround if you absolutely must try the current box:
+
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+free -h
+docker compose up -d --build
+```
+
+That can help the build finish, but a `512MB` server is still likely to be unstable for the long-running app + Postgres + Playwright combination.
+
+**`docker compose up -d --build` fails with `no space left on device`:**
+
+This means the VPS disk filled up during the Docker image build or image export. Failed build layers are often still cached under Docker, so the second attempt can run out of disk even if the first failure was caused by RAM.
+
+On a fresh box with no important Docker data yet, free failed build artifacts and retry:
+
+```bash
+docker builder prune -af
+docker image prune -af
+df -h
+docker compose up -d --build
+```
+
+If it still fails, the disk is too tight for this stack. Increase the VPS disk size or move to a plan with more storage.
 
 **Email not arriving:**
 

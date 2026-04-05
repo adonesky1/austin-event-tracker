@@ -13,8 +13,10 @@ Reference: <https://developers.google.com/workspace/calendar/api/guides/overview
 ## 2. Create OAuth client credentials
 
 1. In Google Cloud, configure the OAuth consent screen.
-2. Create an **OAuth client ID** for a desktop application.
-3. Download the OAuth client JSON file.
+2. If you're using a personal Gmail account, choose an **External** app.
+3. Leave the app in **Testing** for personal setup and add your own Google account under **Test users**.
+4. Create an **OAuth client ID** for a desktop application.
+5. Download the OAuth client JSON file.
 
 Reference: <https://developers.google.com/workspace/calendar/api/quickstart/python>
 
@@ -23,7 +25,10 @@ Reference: <https://developers.google.com/workspace/calendar/api/quickstart/pyth
 From the repo root:
 
 ```bash
-python3 scripts/google_calendar_bootstrap.py path/to/oauth-client.json
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+python scripts/google_calendar_bootstrap.py path/to/oauth-client.json
 ```
 
 The helper will:
@@ -68,12 +73,23 @@ V1 does **not** manage invites in-app.
 
 To share the calendar:
 
-1. Open Google Calendar in the browser.
-2. Find the secondary calendar created by the bootstrap helper.
-3. Open **Settings and sharing**.
-4. Add specific people with **See all event details** access.
+1. Open Google Calendar on a computer: <https://calendar.google.com/>.
+2. In the left sidebar, find **My calendars**.
+3. Locate the secondary calendar created by the bootstrap helper, usually **Austin Curated Events**.
+4. Hover over that calendar, click the three-dot menu, then click **Settings and sharing**.
+5. In the left-side settings menu, open **Share with specific people or groups**.
+6. Click **Add people and groups**.
+7. Add the Gmail address or Google Group for each reader.
+8. Choose **See all event details** for read-only access.
+9. Click **Send**.
+10. Ask each recipient to accept the email invite so the calendar appears in their Google Calendar list.
 
 This keeps the calendar invite-only.
+
+Avoid turning on:
+
+- **Make available to public**
+- **Make available for your organization**, unless you explicitly want everyone in that workspace to see the calendar
 
 ## 6. Preview and manual sync
 
@@ -113,6 +129,10 @@ when `GOOGLE_CALENDAR_ENABLED=true`.
 ### OAuth completed but no refresh token was printed
 
 Delete any previously granted app authorization for the OAuth client and rerun the bootstrap helper so Google prompts for consent again.
+
+### `Error 403: access_denied` during Google sign-in
+
+This usually means the OAuth app is still in **Testing** and the Google account you used is not listed under **Test users** on the OAuth consent screen. Add the account, wait a minute, and rerun the bootstrap helper.
 
 ### Calendar sync runs but creates no events
 
