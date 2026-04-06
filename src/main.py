@@ -31,8 +31,9 @@ async def _seed_if_empty():
 async def lifespan(app: FastAPI):
     _run_migrations()
     await _seed_if_empty()
-    from src.jobs.scheduler import create_scheduler
+    from src.jobs.scheduler import apply_db_schedule_overrides, create_scheduler
     scheduler = create_scheduler(start=True)
+    await apply_db_schedule_overrides()
     logger.info("app_startup", version="0.1.0")
     yield
     scheduler.shutdown(wait=False)

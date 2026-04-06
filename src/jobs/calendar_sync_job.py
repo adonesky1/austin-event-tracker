@@ -70,6 +70,8 @@ async def run_google_calendar_sync(trigger: str = "scheduler") -> dict:
         return sync_result.to_dict()
     except Exception as exc:
         logger.error("google_calendar_sync_failed", error=str(exc))
+        from src.notifications.error_notifier import notify_job_failure
+        await notify_job_failure("google_calendar_sync", exc)
         payload = {
             "status": "failed",
             "trigger": trigger,

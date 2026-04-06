@@ -24,12 +24,18 @@ def build_registry(settings: Settings) -> SourceRegistry:
 
 
 async def run_ingestion():
-    settings = Settings()
-    city_config = load_city_config(settings.default_city)
-    registry = build_registry(settings)
+    try:
+        settings = Settings()
+        city_config = load_city_config(settings.default_city)
+        registry = build_registry(settings)
 
-    pipeline = IngestionPipeline(registry=registry, db_session=None)
-    events = await pipeline.ingest(city_config, persist=False)
+        pipeline = IngestionPipeline(registry=registry, db_session=None)
+        events = await pipeline.ingest(city_config, persist=False)
 
-    logger.info("ingestion_job_complete", total=len(events), city=city_config.name)
-    return events
+        logger.info("ingestion_job_complete", total=len(events), city=city_config.name)
+        return events
+    except Exception as exc:
+        logger.error("ingestion_job_failed", error=str(exc))
+        from src.notifications.error_notifier import notify_job_failure
+        await notify_job_failure("ingest", exc)
+        raise

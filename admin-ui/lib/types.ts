@@ -78,3 +78,32 @@ export type SourceRecord = {
   status: string;
   enabled: boolean;
 };
+
+export type JobInfo = {
+  id: string;
+  name: string;
+  day_of_week: string | null;
+  hour: number;
+  next_run: string | null;
+  enabled: boolean;
+};
+
+export type JobScheduleUpdate = {
+  day_of_week: string | null;
+  hour: number;
+};
+
+export type DigestSummary = {
+  id: string;
+  subject: string;
+  sent_at: string | null;
+  status: string;
+  event_count: number;
+  window_start: string;
+  window_end: string;
+};
+
+export type DigestDetail = DigestSummary & {
+  html_content: string;
+  plaintext_content: string;
+};

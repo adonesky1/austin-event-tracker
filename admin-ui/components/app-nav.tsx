@@ -10,6 +10,8 @@ const LINKS = [
   { href: "/tracked-items", label: "Tracked Items" },
   { href: "/sources", label: "Sources" },
   { href: "/calendar", label: "Calendar" },
+  { href: "/jobs", label: "Jobs" },
+  { href: "/digests", label: "Digests" },
 ];
 
 export function AppNav() {
