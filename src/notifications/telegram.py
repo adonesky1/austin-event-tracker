@@ -16,7 +16,7 @@ class TelegramChannel(NotificationChannel):
 
     async def send(self, to: str, subject: str, html: str, text: str) -> dict:
         # Truncate to Telegram's limit, keeping subject as header
-        body = f"*{subject}*\n\n{text}"
+        body = f"{subject}\n\n{text}"
         if len(body) > MAX_MESSAGE_LENGTH:
             body = body[: MAX_MESSAGE_LENGTH - 3] + "..."
 
@@ -24,7 +24,6 @@ class TelegramChannel(NotificationChannel):
         payload = {
             "chat_id": self.chat_id,
             "text": body,
-            "parse_mode": "Markdown",
         }
 
         async with httpx.AsyncClient(timeout=30) as client:
