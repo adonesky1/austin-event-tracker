@@ -10,11 +10,13 @@ This app runs as a single Docker Compose stack: a FastAPI process (with in-proce
 
 Any cheap VPS works. Recommendations:
 
-| Provider | Size | Cost | Notes |
-|---|---|---|---|
-| Hetzner Cloud | CX22 (2 vCPU, 4GB RAM) | ~€4/mo | Best price/perf, EU-hosted |
-| DigitalOcean | Basic Droplet (2 vCPU, 2GB RAM) | $18/mo | Easy UI, US-hosted |
-| Fly.io | shared-cpu-1x (256MB) | Free tier | Lowest cost, more complex setup |
+
+| Provider      | Size                            | Cost      | Notes                           |
+| ------------- | ------------------------------- | --------- | ------------------------------- |
+| Hetzner Cloud | CX22 (2 vCPU, 4GB RAM)          | ~€4/mo    | Best price/perf, EU-hosted      |
+| DigitalOcean  | Basic Droplet (2 vCPU, 2GB RAM) | $18/mo    | Easy UI, US-hosted              |
+| Fly.io        | shared-cpu-1x (256MB)           | Free tier | Lowest cost, more complex setup |
+
 
 **Minimum requirements:** 1 vCPU, 1GB RAM, 10GB disk. Ubuntu 22.04 LTS recommended.
 
@@ -26,13 +28,15 @@ Resend requires a verified domain to send email. You cannot use a Gmail/Yahoo ad
 
 ### API Keys
 
-| Key | Where to Get | Notes |
-|---|---|---|
-| **Anthropic** (`ANTHROPIC_API_KEY`) | [console.anthropic.com](https://console.anthropic.com) | Free tier: $5 credit. Uses Claude Haiku — very cheap (~$0.001 per digest). |
-| **Resend** (`RESEND_API_KEY`) | [resend.com](https://resend.com) | Free tier: 3,000 emails/mo. Create account → API Keys → Create. |
-| **Eventbrite** (`EVENTBRITE_API_KEY`) | [eventbrite.com/platform](https://www.eventbrite.com/platform/api) | Free. Create app → get private token. |
-| **Bandsintown** (`BANDSINTOWN_APP_ID`) | [artists.bandsintown.com/support/api-installation](https://artists.bandsintown.com/support/api-installation) | Free. The "app_id" is just your app name (e.g. `austin-family-events`), no approval required. |
-| **Google Calendar OAuth client** (`GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`) | [Google Cloud Console](https://console.cloud.google.com/) | Optional. Only needed if you want curated events pushed to a shared Google Calendar. Create a desktop OAuth client and enable the Google Calendar API. |
+
+| Key                                                                                             | Where to Get                                                                                                 | Notes                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Anthropic** (`ANTHROPIC_API_KEY`)                                                             | [console.anthropic.com](https://console.anthropic.com)                                                       | Free tier: $5 credit. Uses Claude Haiku — very cheap (~$0.001 per digest).                                                                             |
+| **Resend** (`RESEND_API_KEY`)                                                                   | [resend.com](https://resend.com)                                                                             | Free tier: 3,000 emails/mo. Create account → API Keys → Create.                                                                                        |
+| **Eventbrite** (`EVENTBRITE_API_KEY`)                                                           | [eventbrite.com/platform](https://www.eventbrite.com/platform/api)                                           | Free. Create app → get private token.                                                                                                                  |
+| **Bandsintown** (`BANDSINTOWN_APP_ID`)                                                          | [artists.bandsintown.com/support/api-installation](https://artists.bandsintown.com/support/api-installation) | Free. The "app_id" is just your app name (e.g. `austin-family-events`), no approval required.                                                          |
+| **Google Calendar OAuth client** (`GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`) | [Google Cloud Console](https://console.cloud.google.com/)                                                    | Optional. Only needed if you want curated events pushed to a shared Google Calendar. Create a desktop OAuth client and enable the Google Calendar API. |
+
 
 Do512 and Austin Chronicle are scraped directly — no API key needed.
 
@@ -43,6 +47,7 @@ Do512 and Austin Chronicle are scraped directly — no API key needed.
 This is the most involved step. Do it before touching the VPS.
 
 **Step 1: Add your domain to Resend**
+
 - Log into [resend.com](https://resend.com) → Domains → Add Domain
 - Enter your domain (e.g. `example.com`)
 
@@ -101,9 +106,9 @@ In Google Cloud:
 1. Create or select a project
 2. Enable **Google Calendar API**
 3. Configure the OAuth consent screen:
-   - choose **External** if you're using a personal Gmail account
-   - leave the app in **Testing** for personal setup
-   - add your own Google account under **Test users** before running the bootstrap helper
+  - choose **External** if you're using a personal Gmail account
+  - leave the app in **Testing** for personal setup
+  - add your own Google account under **Test users** before running the bootstrap helper
 4. Create a **Desktop app** OAuth client
 5. Download the OAuth client JSON file
 
@@ -155,7 +160,7 @@ This app does **not** manage subscriber invites yet.
 
 To keep the calendar invite-only:
 
-1. Open Google Calendar on a computer: <https://calendar.google.com/>
+1. Open Google Calendar on a computer: [https://calendar.google.com/](https://calendar.google.com/)
 2. In the left sidebar, find **My calendars**.
 3. Locate the secondary calendar created by the bootstrap helper, usually **Austin Curated Events**.
 4. Hover over that calendar, click the three-dot menu, then click **Settings and sharing**.
@@ -270,6 +275,7 @@ docker compose ps
 ```
 
 Expected output:
+
 ```
 NAME                        STATUS          PORTS
 austin-event-tracker-app-1  Up (healthy)    0.0.0.0:8000->8000/tcp
@@ -283,6 +289,7 @@ docker compose logs app --tail=50
 ```
 
 You should see lines like:
+
 ```
 migrations_applied
 Seeded default user: digest@yourdomain.com
@@ -323,6 +330,7 @@ docker compose logs app -f
 ```
 
 A successful run looks like:
+
 ```
 run_ingestion_start
 source_fetch_complete  source=eventbrite events=47
@@ -406,12 +414,14 @@ docker compose up -d --build app
 
 **Check scheduled job timing** (all times CT):
 
-| Job | Schedule |
-|---|---|
-| Ingest all sources | Daily at 6:00 AM |
+
+| Job                      | Schedule                      |
+| ------------------------ | ----------------------------- |
+| Ingest all sources       | Daily at 6:00 AM              |
 | Generate and send digest | Tuesday and Friday at 8:00 AM |
-| Sync Google Calendar | Daily at 7:00 AM |
-| Archive old events | Sunday at 3:00 AM |
+| Sync Google Calendar     | Daily at 7:00 AM              |
+| Archive old events       | Sunday at 3:00 AM             |
+
 
 **Manually trigger ingestion:**
 
@@ -455,7 +465,7 @@ SELECT feedback_type, count(*) FROM feedback GROUP BY feedback_type;
 
 ## 10. (Optional) Deploy the Admin UI on Vercel
 
-If you want a proper operator UI for preferences, prompts, tracked items, source status, and calendar sync, deploy the separate **`admin-ui/`** app to Vercel and keep the FastAPI backend on the VPS.
+If you want a proper operator UI for preferences, prompts, tracked items, source status, and calendar sync, deploy the separate `**admin-ui/**` app to Vercel and keep the FastAPI backend on the VPS.
 
 ### Architecture
 
@@ -503,7 +513,7 @@ In Google Cloud:
 
 1. Reuse or create an OAuth client for the admin UI
 2. Add your Vercel callback URL, e.g.
-   - `https://admin.yourdomain.com/api/auth/callback/google`
+  - `https://admin.yourdomain.com/api/auth/callback/google`
 3. Copy the client ID and secret into `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`
 
 ### First deploy checklist
@@ -563,20 +573,23 @@ docker compose restart app
 
 ## 12. Customizing the Recipient
 
-Currently the digest is sent from `FROM_EMAIL` to `FROM_EMAIL` (same address). To send to a different inbox, add a `TO_EMAIL` variable to `.env` and update [`src/jobs/digest_job.py`](../src/jobs/digest_job.py):
+Currently the digest is sent from `FROM_EMAIL` to `FROM_EMAIL` (same address). To send to a different inbox, add a `TO_EMAIL` variable to `.env` and update `[src/jobs/digest_job.py](../src/jobs/digest_job.py)`:
 
 Find this line (around line 36):
+
 ```python
 profile = DEFAULT_PROFILE.model_copy(update={"email": settings.from_email})
 ```
 
 Change to:
+
 ```python
 to_email = getattr(settings, "to_email", settings.from_email)
 profile = DEFAULT_PROFILE.model_copy(update={"email": to_email})
 ```
 
 Then add to `src/config/settings.py`:
+
 ```python
 to_email: str = ""  # defaults to from_email if blank
 ```
@@ -609,7 +622,7 @@ Chromium inside Docker sometimes needs extra flags. Check logs for `BrowserType.
 docker compose build --no-cache app
 ```
 
-**`docker compose up -d --build` fails with `signal: killed`:**
+`**docker compose up -d --build` fails with `signal: killed`:**
 
 This usually means the VPS ran out of RAM during the Docker build, most often while installing Chromium for Playwright. A `512MB` VPS is below the supported minimum for this project.
 
@@ -635,7 +648,7 @@ docker compose up -d --build
 
 That can help the build finish, but a `512MB` server is still likely to be unstable for the long-running app + Postgres + Playwright combination.
 
-**`docker compose up -d --build` fails with `no space left on device`:**
+`**docker compose up -d --build` fails with `no space left on device`:**
 
 This means the VPS disk filled up during the Docker image build or image export. Failed build layers are often still cached under Docker, so the second attempt can run out of disk even if the first failure was caused by RAM.
 
@@ -660,10 +673,10 @@ If it still fails, the disk is too tight for this stack. Increase the VPS disk s
 **Google Calendar sync is enabled but fails immediately:**
 
 1. Check that all four required values are set in `.env`:
-   - `GOOGLE_CALENDAR_CLIENT_ID`
-   - `GOOGLE_CALENDAR_CLIENT_SECRET`
-   - `GOOGLE_CALENDAR_REFRESH_TOKEN`
-   - `GOOGLE_CALENDAR_ID`
+  - `GOOGLE_CALENDAR_CLIENT_ID`
+  - `GOOGLE_CALENDAR_CLIENT_SECRET`
+  - `GOOGLE_CALENDAR_REFRESH_TOKEN`
+  - `GOOGLE_CALENDAR_ID`
 2. Confirm `GOOGLE_CALENDAR_ENABLED=true`
 3. Check app logs:
 
@@ -720,11 +733,14 @@ docker volume prune -f           # ⚠️  only if you want to wipe the database
 
 ## Cost Estimate (monthly)
 
-| Item | Cost |
-|---|---|
-| Hetzner CX22 VPS | ~€4 |
-| Domain | ~$1 (amortized) |
-| Anthropic API (2 digests/wk × Claude Haiku) | ~$0.05 |
-| Resend (free tier, <100 emails/mo) | $0 |
-| Eventbrite API (free tier) | $0 |
-| **Total** | **~€5/mo** |
+
+| Item                                        | Cost            |
+| ------------------------------------------- | --------------- |
+| Hetzner CX22 VPS                            | ~€4             |
+| Domain                                      | ~$1 (amortized) |
+| Anthropic API (2 digests/wk × Claude Haiku) | ~$0.05          |
+| Resend (free tier, <100 emails/mo)          | $0              |
+| Eventbrite API (free tier)                  | $0              |
+| **Total**                                   | **~€5/mo**      |
+
+
