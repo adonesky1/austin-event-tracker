@@ -57,6 +57,10 @@ class Do512Adapter(SourceAdapter):
                 )
                 page = await ctx.new_page()
                 await page.goto(self.EVENTS_URL, wait_until="networkidle", timeout=30000)
+                try:
+                    await page.wait_for_selector(".ds-listing", timeout=10000)
+                except Exception:
+                    pass
                 html = await page.content()
                 await browser.close()
         except Exception as e:
@@ -93,14 +97,15 @@ class Do512Adapter(SourceAdapter):
             venue_el = listing.select_one(".ds-listing-venue a, .ds-listing-venue")
             venue_name = venue_el.get_text(strip=True) if venue_el else None
 
-            date_el = listing.select_one(".ds-listing-date")
-            time_el = listing.select_one(".ds-listing-time")
+            date_el = listing.select_one(".ds-listing-date, .ds-event-time, [class*='date'], [class*='time']")
+            time_el = listing.select_one(".ds-listing-time, .ds-event-start-time, [class*='start-time']")
             start_dt = self._parse_datetime(
                 date_el.get_text(strip=True) if date_el else "",
                 time_el.get_text(strip=True) if time_el else "",
             )
+            # Fall back to today rather than dropping the event
             if not start_dt:
-                return None
+                start_dt = datetime.now(tz=timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
 
             price_el = listing.select_one(".ds-listing-price")
             price_text = price_el.get_text(strip=True).lower() if price_el else ""
