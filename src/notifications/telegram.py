@@ -15,21 +15,22 @@ class TelegramChannel(NotificationChannel):
         self.chat_id = chat_id
 
     async def send(self, to: str, subject: str, html: str, text: str) -> dict:
-        # Truncate to Telegram's limit, keeping subject as header
         body = f"{subject}\n\n{text}"
-        if len(body) > MAX_MESSAGE_LENGTH:
-            body = body[: MAX_MESSAGE_LENGTH - 3] + "..."
+        # Split into chunks that fit Telegram's limit
+        chunks = [
+            body[i: i + MAX_MESSAGE_LENGTH]
+            for i in range(0, len(body), MAX_MESSAGE_LENGTH)
+        ]
 
         url = f"{TELEGRAM_API}/bot{self.bot_token}/sendMessage"
-        payload = {
-            "chat_id": self.chat_id,
-            "text": body,
-        }
-
+        last_id = ""
         async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(url, json=payload)
-            response.raise_for_status()
-            data = response.json()
+            for chunk in chunks:
+                payload = {"chat_id": self.chat_id, "text": chunk}
+                response = await client.post(url, json=payload)
+                response.raise_for_status()
+                data = response.json()
+                last_id = str(data.get("result", {}).get("message_id", ""))
 
-        logger.info("telegram_send_complete", chat_id=self.chat_id, ok=data.get("ok"))
-        return {"id": str(data.get("result", {}).get("message_id", ""))}
+        logger.info("telegram_send_complete", chat_id=self.chat_id, chunks=len(chunks))
+        return {"id": last_id}

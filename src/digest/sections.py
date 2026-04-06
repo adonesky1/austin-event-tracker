@@ -45,16 +45,18 @@ def group_events_into_sections(
 
         # Kids & Family
         if (
-            family_score >= HIGH_FAMILY_SCORE
-            or event.category in KIDS_CATEGORIES
-        ) and len(sections["kids_family"]) < MAX_PER_SECTION:
+            eid not in in_top
+            and (family_score >= HIGH_FAMILY_SCORE or event.category in KIDS_CATEGORIES)
+            and len(sections["kids_family"]) < MAX_PER_SECTION
+        ):
             sections["kids_family"].append((event, score))
 
         # Date Night / Adults
         if (
-            family_score <= LOW_FAMILY_SCORE
-            or event.category in ADULT_CATEGORIES
-        ) and len(sections["date_night"]) < MAX_PER_SECTION:
+            eid not in in_top
+            and (family_score <= LOW_FAMILY_SCORE or event.category in ADULT_CATEGORIES)
+            and len(sections["date_night"]) < MAX_PER_SECTION
+        ):
             sections["date_night"].append((event, score))
 
         # This Weekend
@@ -76,7 +78,8 @@ def group_events_into_sections(
         # Free & Cheap
         price = float(event.price_max) if event.price_max is not None else None
         if (
-            price is not None
+            eid not in in_top
+            and price is not None
             and price <= FREE_CHEAP_THRESHOLD
             and len(sections["free_cheap"]) < MAX_PER_SECTION
         ):
