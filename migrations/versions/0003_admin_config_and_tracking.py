@@ -42,7 +42,7 @@ def upgrade() -> None:
         sa.Column("label", sa.String(255), nullable=False),
         sa.Column(
             "kind",
-            sa.Enum("artist", "venue", "keyword", "series", name="trackeditemkind"),
+            postgresql.ENUM(name="trackeditemkind", create_type=False),
             nullable=False,
         ),
         sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),

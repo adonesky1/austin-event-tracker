@@ -31,7 +31,7 @@ def upgrade() -> None:
         sa.Column("trigger", sa.String(50), nullable=False, server_default="scheduler"),
         sa.Column(
             "status",
-            sa.Enum("success", "failed", "skipped", name="syncrunstatus"),
+            postgresql.ENUM(name="syncrunstatus", create_type=False),
             nullable=False,
             server_default="success",
         ),
