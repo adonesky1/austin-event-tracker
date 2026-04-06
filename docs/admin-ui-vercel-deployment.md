@@ -12,25 +12,23 @@ The `admin-ui/` directory is a standalone Next.js app deployed to Vercel. It act
 
 ---
 
-## Step 1 — Add your Vercel callback URL to Google OAuth
+## Step 1 — Redeploy the VPS backend
 
-Before deploying, you need to know your Vercel app URL. Vercel assigns a URL in the format `https://<project-name>-<hash>.vercel.app` on first deploy, but you can also pick a custom project name.
+Pull the latest code and rebuild. Migration `0004` (job_schedules table) runs automatically on startup.
 
-**Option A — Deploy first, then update OAuth (recommended)**
+```bash
+# SSH into your VPS, then:
+cd /path/to/austin-event-tracker
+git pull
+docker compose up -d --build
+docker compose logs -f app
+# Wait until you see "migrations_applied" and "scheduler_started"
+```
 
-1. Complete steps 2–4 below
-2. After the first deployment, note your assigned URL (e.g. `https://austin-admin.vercel.app`)
-3. Go to [Google Cloud Console → APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials)
-4. Edit your OAuth 2.0 client
-5. Under **Authorized redirect URIs**, add:
-   ```
-   https://<your-vercel-url>/api/auth/callback/google
-   ```
-6. Save — the next sign-in attempt will work
-
-**Option B — Use a custom Vercel domain you already know before deploying**
-
-Skip to step 2 and add the redirect URI upfront.
+To verify the migration ran:
+```bash
+docker compose exec db psql -U events -d events -c "\d job_schedules"
+```
 
 ---
 
@@ -40,36 +38,46 @@ Skip to step 2 and add the redirect URI upfront.
 2. Import your GitHub repo (`austin-event-tracker`)
 3. Under **Root Directory**, set it to `admin-ui`
 4. Framework Preset: **Next.js** (auto-detected)
-5. Click **Deploy** — it will fail on the first build because env vars aren't set yet. That's fine.
+5. Click **Deploy** — the first build will fail because env vars aren't set yet. That's fine.
 
 ---
 
 ## Step 3 — Set environment variables
 
-In the Vercel dashboard → your project → **Settings → Environment Variables**, add:
+In the Vercel dashboard → your project → **Settings → Environment Variables**, add all of the following for **Production**, **Preview**, and **Development**:
 
-| Variable | Value | Notes |
+| Variable | Value | How to get it |
 |---|---|---|
 | `BACKEND_BASE_URL` | `http://178.156.194.155:8000` | Your VPS backend URL |
-| `BACKEND_ADMIN_API_KEY` | (value of `ADMIN_API_KEY` from VPS `.env`) | Kept server-side only |
+| `BACKEND_ADMIN_API_KEY` | (value of `ADMIN_API_KEY` from VPS `.env`) | Copy from `.env` on the VPS |
 | `AUTH_SECRET` | random 32-char string | Run: `openssl rand -base64 32` |
 | `AUTH_GOOGLE_ID` | OAuth client ID | From Google Cloud Console |
 | `AUTH_GOOGLE_SECRET` | OAuth client secret | From Google Cloud Console |
 | `ADMIN_ALLOWED_EMAILS` | `you@gmail.com` | Comma-separated list of allowed Google accounts |
 
-Set all variables for **Production**, **Preview**, and **Development** environments.
+---
+
+## Step 4 — Add your Vercel URL to Google OAuth
+
+After the project is created in step 2, note your assigned Vercel URL (e.g. `https://austin-admin.vercel.app`).
+
+1. Go to [Google Cloud Console → APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials)
+2. Edit your OAuth 2.0 client
+3. Under **Authorized redirect URIs**, add:
+   ```
+   https://<your-vercel-url>/api/auth/callback/google
+   ```
+4. Save
 
 ---
 
-## Step 4 — Redeploy
+## Step 5 — Redeploy on Vercel
 
-After setting env vars, go to **Deployments** and click **Redeploy** on the latest deployment (or push a new commit). The build should succeed.
+After setting env vars and updating the OAuth redirect URI:
 
----
-
-## Step 5 — Update Google OAuth redirect URI
-
-Follow Option A from Step 1 above — add your final Vercel URL to the authorized redirect URIs in Google Cloud Console.
+1. In the Vercel dashboard → **Deployments**
+2. Click **Redeploy** on the latest deployment
+3. The build should succeed this time
 
 ---
 
@@ -78,30 +86,15 @@ Follow Option A from Step 1 above — add your final Vercel URL to the authorize
 1. Open your Vercel app URL
 2. You should be redirected to `/signin`
 3. Click **Sign in with Google** and authenticate with one of the `ADMIN_ALLOWED_EMAILS` accounts
-4. You should land on the Dashboard
-
----
-
-## Manual configuration after VPS redeployment
-
-When you redeploy the backend on your VPS (`docker compose up -d --build`), the new migration `0004_job_schedules` will run automatically on startup. No manual DB steps are needed.
-
-If you want to verify it ran:
-```bash
-# SSH into your VPS, then:
-docker compose exec db psql -U events -d events -c "\d job_schedules"
-```
+4. You should land on the Dashboard with **Jobs** and **Digests** in the nav
 
 ---
 
 ## Local development
 
-Copy the example env file and fill in values:
 ```bash
 cd admin-ui
 cp .env.example .env.local
-# edit .env.local with real values
+# Fill in .env.local with real values (use http://localhost:8000 for BACKEND_BASE_URL)
 npm run dev
 ```
-
-For local use, set `BACKEND_BASE_URL=http://localhost:8000` and run the backend stack with `docker compose up -d`.
