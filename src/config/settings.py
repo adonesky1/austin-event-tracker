@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     from_email: str = "events@localhost"
     base_url: str = "http://localhost:8000"
     feedback_secret: str = "changeme"
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
     log_level: str = "INFO"
     google_calendar_enabled: bool = False
     google_calendar_client_id: str = ""

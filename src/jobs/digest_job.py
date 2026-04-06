@@ -6,6 +6,7 @@ from src.config.settings import Settings
 from src.curation.service import CurationService
 from src.digest.generator import DigestGenerator
 from src.notifications.email import EmailChannel
+from src.notifications.telegram import TelegramChannel
 
 logger = structlog.get_logger()
 
@@ -36,7 +37,13 @@ async def run_digest():
     text = generator.render_plaintext(top_events, window_start=window_start, window_end=window_end)
     subject = generator.generate_subject(window_start, window_end)
 
-    channel = EmailChannel(api_key=settings.resend_api_key, from_email=settings.from_email)
+    if settings.telegram_bot_token and settings.telegram_chat_id:
+        channel = TelegramChannel(
+            bot_token=settings.telegram_bot_token,
+            chat_id=settings.telegram_chat_id,
+        )
+    else:
+        channel = EmailChannel(api_key=settings.resend_api_key, from_email=settings.from_email)
     send_result = await channel.send(
         to=result.profile.email,
         subject=subject,
