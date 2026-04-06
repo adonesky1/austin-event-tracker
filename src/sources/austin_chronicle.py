@@ -29,7 +29,7 @@ CATEGORY_MAP = {
     "festival": "festivals",
 }
 
-BASE_URL = "https://www.austinchronicle.com"
+BASE_URL = "https://calendar.austinchronicle.com"
 
 
 class AustinChronicleAdapter(SourceAdapter):
@@ -40,10 +40,10 @@ class AustinChronicleAdapter(SourceAdapter):
         return 2.0
 
     async def fetch_events(self, city_config: CityConfig) -> list[RawEvent]:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
             try:
                 response = await client.get(
-                    f"{BASE_URL}/events/",
+                    f"{BASE_URL}/",
                     headers={"User-Agent": "CityEventsBot/0.1 (family event curator)"},
                 )
                 response.raise_for_status()
