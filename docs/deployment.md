@@ -293,13 +293,13 @@ app_startup  version=0.1.0
 **Hit the health endpoint:**
 
 ```bash
-curl http://your-vps-ip:8000/health
+curl http://178.156.194.155:8000/health
 # {"status":"ok","version":"0.1.0"}
 ```
 
 **Check the API docs:**
 
-Open `http://your-vps-ip:8000/docs` in a browser — you'll see the full Swagger UI.
+Open `http://178.156.194.155:8000/docs` in a browser — you'll see the full Swagger UI.
 
 ---
 

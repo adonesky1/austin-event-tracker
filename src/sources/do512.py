@@ -48,10 +48,14 @@ class Do512Adapter(SourceAdapter):
 
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
-                page = await browser.new_page(
-                    user_agent="CityEventsBot/0.1 (family event curator)"
+                browser = await p.chromium.launch(
+                    headless=True,
+                    args=["--no-sandbox", "--disable-blink-features=AutomationControlled"],
                 )
+                ctx = await browser.new_context(
+                    user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                )
+                page = await ctx.new_page()
                 await page.goto(self.EVENTS_URL, wait_until="networkidle", timeout=30000)
                 html = await page.content()
                 await browser.close()
@@ -81,7 +85,8 @@ class Do512Adapter(SourceAdapter):
             if not title_el:
                 return None
             title = title_el.get_text(strip=True)
-            url = title_el.get("href", "")
+            link_el = listing.select_one("a.ds-listing-event-title")
+            url = link_el.get("href", "") if link_el else ""
             if url and not url.startswith("http"):
                 url = f"https://do512.com{url}"
 
