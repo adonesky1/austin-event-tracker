@@ -22,5 +22,5 @@ class SourceHealth(Base):
     events_found: Mapped[int] = mapped_column(Integer, default=0)
     errors: Mapped[str | None] = mapped_column(Text)
     status: Mapped[SourceHealthStatus] = mapped_column(
-        Enum(SourceHealthStatus), default=SourceHealthStatus.HEALTHY
+        Enum(SourceHealthStatus, values_callable=lambda obj: [e.value for e in obj]), default=SourceHealthStatus.HEALTHY
     )

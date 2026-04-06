@@ -21,10 +21,10 @@ class UserProfile(Base, TimestampMixin):
     max_distance_miles: Mapped[int] = mapped_column(Integer, default=30)
     preferred_days: Mapped[list[str] | None] = mapped_column(ARRAY(String))
     preferred_times: Mapped[list[str] | None] = mapped_column(ARRAY(String))
-    budget: Mapped[BudgetLevel] = mapped_column(Enum(BudgetLevel), default=BudgetLevel.MODERATE)
+    budget: Mapped[BudgetLevel] = mapped_column(Enum(BudgetLevel, values_callable=lambda obj: [e.value for e in obj]), default=BudgetLevel.MODERATE)
     interests: Mapped[list[str] | None] = mapped_column(ARRAY(String))
     dislikes: Mapped[list[str] | None] = mapped_column(ARRAY(String))
     max_events_per_digest: Mapped[int] = mapped_column(Integer, default=15)
     crowd_sensitivity: Mapped[CrowdSensitivity] = mapped_column(
-        Enum(CrowdSensitivity), default=CrowdSensitivity.MEDIUM
+        Enum(CrowdSensitivity, values_callable=lambda obj: [e.value for e in obj]), default=CrowdSensitivity.MEDIUM
     )

@@ -16,7 +16,7 @@ class CalendarSyncRun(Base):
     )
     trigger: Mapped[str] = mapped_column(String(50), default="scheduler")
     status: Mapped[SyncRunStatus] = mapped_column(
-        Enum(SyncRunStatus), default=SyncRunStatus.SUCCESS
+        Enum(SyncRunStatus, values_callable=lambda obj: [e.value for e in obj]), default=SyncRunStatus.SUCCESS
     )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

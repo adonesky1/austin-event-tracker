@@ -20,7 +20,7 @@ class Feedback(Base):
     event_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("events.id")
     )
-    feedback_type: Mapped[FeedbackType] = mapped_column(Enum(FeedbackType), nullable=False)
+    feedback_type: Mapped[FeedbackType] = mapped_column(Enum(FeedbackType, values_callable=lambda obj: [e.value for e in obj]), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

@@ -23,7 +23,7 @@ class Digest(Base):
     event_ids: Mapped[list[uuid.UUID] | None] = mapped_column(ARRAY(UUID(as_uuid=True)))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[DigestStatus] = mapped_column(
-        Enum(DigestStatus), default=DigestStatus.DRAFT
+        Enum(DigestStatus, values_callable=lambda obj: [e.value for e in obj]), default=DigestStatus.DRAFT
     )
     window_start: Mapped[date] = mapped_column(Date)
     window_end: Mapped[date] = mapped_column(Date)
