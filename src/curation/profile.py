@@ -23,6 +23,7 @@ def build_default_profile(settings: Settings) -> UserProfileSchema:
 
 def user_profile_to_schema(profile: UserProfile) -> UserProfileSchema:
     return UserProfileSchema(
+        id=profile.id,
         email=profile.email,
         city=profile.city,
         adults=profile.adults or [],

@@ -1,7 +1,10 @@
+import uuid
+
 from pydantic import BaseModel, Field
 
 
 class UserProfileSchema(BaseModel):
+    id: uuid.UUID | None = None
     email: str
     city: str = "austin"
     adults: list[dict] = Field(default_factory=lambda: [{"age": 35}])

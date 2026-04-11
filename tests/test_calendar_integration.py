@@ -4,6 +4,7 @@ import pytest
 
 from src.integrations.calendar import (
     APP_MANAGED_PUBLISHER,
+    GoogleCalendarAuthError,
     GoogleCalendarIntegration,
     build_calendar_description,
     build_google_event_id,
@@ -192,6 +193,17 @@ class FakeGoogleService:
         return self.calendars_resource
 
 
+class RefreshError(Exception):
+    pass
+
+
+class FailingRefreshRequest:
+    def execute(self):
+        raise RefreshError(
+            "('invalid_grant: Bad Request', {'error': 'invalid_grant', 'error_description': 'Bad Request'})"
+        )
+
+
 @pytest.mark.asyncio
 async def test_sync_events_creates_updates_and_deletes(monkeypatch):
     store = {}
@@ -217,3 +229,15 @@ async def test_sync_events_creates_updates_and_deletes(monkeypatch):
     deleted = await integration.sync_events([], profile, trigger="manual")
     assert deleted.deleted_count == 1
     assert store == {}
+
+
+@pytest.mark.asyncio
+async def test_execute_rewrites_invalid_grant_refresh_error():
+    integration = GoogleCalendarIntegration(make_settings())
+
+    with pytest.raises(GoogleCalendarAuthError) as excinfo:
+        await integration._execute(FailingRefreshRequest())
+
+    message = str(excinfo.value)
+    assert "invalid_grant" in message
+    assert "GOOGLE_CALENDAR_REFRESH_TOKEN" in message

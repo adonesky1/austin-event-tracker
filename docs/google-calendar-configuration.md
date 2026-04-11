@@ -134,6 +134,20 @@ Delete any previously granted app authorization for the OAuth client and rerun t
 
 This usually means the OAuth app is still in **Testing** and the Google account you used is not listed under **Test users** on the OAuth consent screen. Add the account, wait a minute, and rerun the bootstrap helper.
 
+### `RefreshError: invalid_grant`
+
+This means Google rejected the stored refresh token. Common causes:
+
+- the OAuth client was left in **Testing** and the refresh token expired
+- the token was revoked from the Google account security settings
+- the client ID / client secret no longer match the refresh token
+
+Fix:
+
+1. Re-run `python scripts/google_calendar_bootstrap.py path/to/oauth-client.json`
+2. Copy the new `GOOGLE_CALENDAR_REFRESH_TOKEN`
+3. Update the deployed env var and restart or redeploy the app
+
 ### Calendar sync runs but creates no events
 
 Check:

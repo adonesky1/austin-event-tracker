@@ -47,23 +47,39 @@ async def _run_digest():
         base_url=settings.base_url,
         feedback_secret=settings.feedback_secret,
     )
-    html = generator.render_html(top_events, window_start=window_start, window_end=window_end)
-    text = generator.render_plaintext(top_events, window_start=window_start, window_end=window_end)
+    digest_id = uuid.uuid4()
+    html = generator.render_html(
+        top_events,
+        window_start=window_start,
+        window_end=window_end,
+        digest_id=str(digest_id),
+    )
+    text = generator.render_plaintext(
+        top_events,
+        window_start=window_start,
+        window_end=window_end,
+        digest_id=str(digest_id),
+    )
     subject = generator.generate_subject(window_start, window_end)
 
-    digest_id = uuid.uuid4()
-    await _save_digest(
-        settings=settings,
-        digest_id=digest_id,
-        user_id=result.profile.id,
-        subject=subject,
-        html=html,
-        text=text,
-        event_ids=[e.id for e in top_events],
-        window_start=result.generated_at.date(),
-        window_end=(result.generated_at + timedelta(days=settings.google_calendar_horizon_days)).date(),
-        status=DigestStatus.DRAFT,
-    )
+    digest_saved = False
+    if result.profile.id is None:
+        logger.warning("digest_save_skipped_missing_profile_id", email=result.profile.email)
+    else:
+        digest_saved = await _save_digest(
+            settings=settings,
+            digest_id=digest_id,
+            user_id=result.profile.id,
+            subject=subject,
+            html=html,
+            text=text,
+            event_ids=[event.id for event, _score in top_events],
+            window_start=result.generated_at.date(),
+            window_end=(
+                result.generated_at + timedelta(days=settings.google_calendar_horizon_days)
+            ).date(),
+            status=DigestStatus.DRAFT,
+        )
 
     if settings.telegram_bot_token and settings.telegram_chat_id:
         channel = TelegramChannel(
@@ -80,13 +96,22 @@ async def _run_digest():
         text=text,
     )
 
-    await _update_digest_status(settings, digest_id, DigestStatus.SENT)
+    if digest_saved:
+        await _update_digest_status(settings, digest_id, DigestStatus.SENT)
 
     logger.info(
         "digest_job_complete",
         events=len(top_events),
         email_id=send_result.get("id"),
     )
+    return {
+        "status": "success",
+        "summary": f"Sent digest with {len(top_events)} events.",
+        "digest_id": str(digest_id),
+        "event_count": len(top_events),
+        "delivery_id": send_result.get("id"),
+        "saved_to_db": digest_saved,
+    }
 
 
 async def _save_digest(
@@ -100,7 +125,7 @@ async def _save_digest(
     window_start,
     window_end,
     status: DigestStatus,
-):
+) -> bool:
     try:
         engine = create_engine(settings)
         Session = create_session_factory(engine)
@@ -120,8 +145,10 @@ async def _save_digest(
             )
             await session.commit()
         await engine.dispose()
+        return True
     except Exception as exc:
         logger.error("digest_save_failed", error=str(exc))
+        return False
 
 
 async def _update_digest_status(settings: Settings, digest_id: uuid.UUID, status: DigestStatus):

@@ -19,6 +19,10 @@ APP_MANAGED_PUBLISHER = "austin-event-tracker"
 FALLBACK_LINK_LABEL = "Source unavailable"
 
 
+class GoogleCalendarAuthError(RuntimeError):
+    """Raised when Google Calendar OAuth credentials need to be refreshed."""
+
+
 class CalendarIntegration(ABC):
     """Interface for calendar integrations (Google Calendar, Apple Calendar, etc.)."""
 
@@ -229,7 +233,11 @@ class GoogleCalendarIntegration(CalendarIntegration):
         return self._service
 
     async def _execute(self, request):
-        return await asyncio.to_thread(request.execute)
+        try:
+            return await asyncio.to_thread(request.execute)
+        except Exception as exc:
+            _raise_google_calendar_auth_error(exc)
+            raise
 
 
 def build_publication_key(event: NormalizedEvent) -> str:
@@ -390,6 +398,35 @@ def _existing_payload_hash(event: dict[str, Any]) -> str:
 def _is_managed_event(event: dict[str, Any]) -> bool:
     private = ((event.get("extendedProperties") or {}).get("private") or {})
     return private.get("publisher") == APP_MANAGED_PUBLISHER
+
+
+def _raise_google_calendar_auth_error(exc: Exception) -> None:
+    if not _is_google_refresh_error(exc):
+        return
+
+    message = str(exc)
+    if "invalid_grant" in message.lower():
+        raise GoogleCalendarAuthError(
+            "Google Calendar refresh token was rejected (invalid_grant). "
+            "Re-run scripts/google_calendar_bootstrap.py, update "
+            "GOOGLE_CALENDAR_REFRESH_TOKEN, and restart or redeploy the app. "
+            "If the OAuth consent screen is still in Testing mode, Google "
+            "refresh tokens can expire after 7 days."
+        ) from exc
+
+    raise GoogleCalendarAuthError(f"Google Calendar authentication failed: {message}") from exc
+
+
+def _is_google_refresh_error(exc: Exception) -> bool:
+    if exc.__class__.__name__ == "RefreshError":
+        return True
+
+    try:
+        from google.auth.exceptions import RefreshError
+    except Exception:
+        return False
+
+    return isinstance(exc, RefreshError)
 
 
 def _normalize_key_part(value: str | None) -> str:
