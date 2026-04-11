@@ -318,6 +318,16 @@ body {
   color: var(--warning);
 }
 
+.status-active {
+  background: rgba(50, 87, 232, 0.12);
+  color: var(--primary);
+}
+
+.status-danger {
+  background: rgba(180, 35, 24, 0.12);
+  color: var(--danger);
+}
+
 .status-muted {
   background: rgba(92, 108, 138, 0.14);
   color: var(--muted);
@@ -353,6 +363,180 @@ body {
 .error-text {
   color: var(--danger);
   font-weight: 600;
+}
+
+.job-status-row,
+.job-actions,
+.job-source-meta,
+.job-filter-toggle {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.job-actions {
+  justify-content: flex-start;
+}
+
+.job-runtime-panel {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  background: var(--surface-muted);
+}
+
+.job-history-panel {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.job-section-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.job-runtime-summary {
+  margin: 0;
+  font-weight: 700;
+}
+
+.job-runtime-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.job-runtime-grid div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.job-runtime-grid dt {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.job-runtime-grid dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.job-day-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.job-day-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.job-hour-field input {
+  width: min(120px, 100%);
+}
+
+.job-source-list {
+  display: grid;
+  gap: 10px;
+}
+
+.job-source-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+}
+
+.job-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.job-history-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  display: grid;
+  gap: 8px;
+}
+
+.job-history-topline,
+.job-history-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.job-history-summary {
+  margin: 0;
+  font-weight: 600;
+}
+
+.job-failures-list {
+  display: grid;
+  gap: 12px;
+}
+
+.job-failure-item {
+  border: 1px solid rgba(180, 35, 24, 0.16);
+  border-radius: 14px;
+  padding: 14px;
+  background: rgba(180, 35, 24, 0.04);
+  display: grid;
+  gap: 8px;
+}
+
+.job-filter-toggle {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.job-filter-toggle input {
+  width: 18px;
+  height: 18px;
+}
+
+.traceback-panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.traceback-panel summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  font-weight: 600;
+}
+
+.traceback-panel pre {
+  margin: 0;
+  padding: 12px;
+  max-height: 280px;
+  overflow: auto;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .signin-shell {
@@ -395,7 +579,12 @@ body {
 
   .action-row,
   .split-header,
-  .detail-row {
+  .detail-row,
+  .job-source-item,
+  .job-source-meta,
+  .job-history-topline,
+  .job-history-meta,
+  .job-filter-toggle {
     flex-direction: column;
     align-items: stretch;
   }

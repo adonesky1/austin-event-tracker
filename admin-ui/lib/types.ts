@@ -86,11 +86,39 @@ export type JobInfo = {
   hour: number;
   next_run: string | null;
   enabled: boolean;
+  runtime: JobRuntimeInfo;
+  recent_runs: JobRunInfo[];
 };
 
 export type JobScheduleUpdate = {
   day_of_week: string | null;
   hour: number;
+};
+
+export type JobRuntimeInfo = {
+  status: "idle" | "queued" | "running" | "success" | "warning" | "failed" | "skipped";
+  trigger: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  summary: string | null;
+  error: string | null;
+  traceback: string | null;
+  details: Record<string, unknown> | null;
+};
+
+export type JobRunInfo = {
+  id: string;
+  job_id: string;
+  job_name: string;
+  trigger: string;
+  status: "running" | "success" | "warning" | "failed" | "skipped" | string;
+  started_at: string | null;
+  completed_at: string | null;
+  summary: string | null;
+  error: string | null;
+  traceback: string | null;
+  details: Record<string, unknown> | null;
+  created_at: string | null;
 };
 
 export type DigestSummary = {

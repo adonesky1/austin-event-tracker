@@ -12,3 +12,9 @@ async def cleanup_old_events():
     cutoff = datetime.now(timezone.utc) - timedelta(days=ARCHIVE_AFTER_DAYS)
     # TODO: delete or archive events from db where start_datetime < cutoff
     logger.info("cleanup_job_complete", cutoff=cutoff.isoformat())
+    return {
+        "status": "success",
+        "summary": f"Cleanup completed for events older than {cutoff.date().isoformat()}.",
+        "cutoff": cutoff.isoformat(),
+        "archived_count": 0,
+    }

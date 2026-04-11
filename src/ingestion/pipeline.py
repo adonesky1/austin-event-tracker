@@ -14,6 +14,7 @@ class IngestionPipeline:
     def __init__(self, registry: SourceRegistry, db_session=None):
         self.registry = registry
         self.db_session = db_session
+        self.last_results: dict[str, dict] = {}
 
     async def ingest(self, city_config: CityConfig, persist: bool = True) -> list[NormalizedEvent]:
         all_events: list[NormalizedEvent] = []
@@ -53,6 +54,7 @@ class IngestionPipeline:
             total_events=len(all_events),
             sources=results,
         )
+        self.last_results = results
 
         if persist and self.db_session:
             await self._persist_events(all_events)

@@ -1,9 +1,8 @@
-import asyncio
 import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.admin.service import (
     create_tracked_item,
@@ -58,6 +57,32 @@ class CalendarSyncResponse(BaseModel):
     error: str | None = None
 
 
+class JobRuntimeInfo(BaseModel):
+    status: str = "idle"
+    trigger: Optional[str] = None
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    summary: Optional[str] = None
+    error: Optional[str] = None
+    traceback: Optional[str] = None
+    details: dict | None = None
+
+
+class JobRunInfo(BaseModel):
+    id: str
+    job_id: str
+    job_name: str
+    trigger: str
+    status: str
+    started_at: Optional[str]
+    completed_at: Optional[str]
+    summary: Optional[str]
+    error: Optional[str]
+    traceback: Optional[str]
+    details: dict | None = None
+    created_at: Optional[str]
+
+
 class JobInfo(BaseModel):
     id: str
     name: str
@@ -65,6 +90,8 @@ class JobInfo(BaseModel):
     hour: int
     next_run: Optional[str]
     enabled: bool
+    runtime: JobRuntimeInfo = Field(default_factory=JobRuntimeInfo)
+    recent_runs: list[JobRunInfo] = Field(default_factory=list)
 
 
 class JobScheduleUpdate(BaseModel):
@@ -165,9 +192,13 @@ async def toggle_source(name: str) -> SourceToggleResponse:
 @router.post("/ingest")
 async def trigger_ingest():
     """Trigger ingestion for all enabled sources now."""
-    from src.jobs.ingest_job import run_ingestion
-    asyncio.create_task(run_ingestion())
-    return {"status": "triggered", "message": "Ingestion job started"}
+    from src.jobs.scheduler import trigger_job_now
+
+    try:
+        trigger_job_now("ingest_all_sources")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"status": "queued", "message": "Ingestion job queued"}
 
 
 # ---------------------------------------------------------------------------
@@ -181,40 +212,38 @@ async def list_jobs():
     if scheduler is None:
         raise HTTPException(status_code=503, detail="Scheduler not available")
 
+    recent_runs_by_job = {}
+    try:
+        recent_runs_by_job = await _with_session(_load_recent_job_runs_by_job)
+    except Exception:
+        recent_runs_by_job = {}
+
     jobs = []
     for job in scheduler.get_jobs():
-        trigger = job.trigger
-        day_of_week = None
-        hour = 0
-        if hasattr(trigger, "fields"):
-            for field in trigger.fields:
-                if field.name == "day_of_week" and not field.is_default:
-                    day_of_week = str(field)
-                if field.name == "hour" and not field.is_default:
-                    hour = int(str(field))
-        next_run = job.next_run_time.isoformat() if job.next_run_time else None
-        jobs.append(JobInfo(
-            id=job.id,
-            name=job.name,
-            day_of_week=day_of_week,
-            hour=hour,
-            next_run=next_run,
-            enabled=True,
-        ))
+        jobs.append(_serialize_job_info(job, recent_runs_by_job.get(job.id, [])))
     return jobs
 
 
-@router.post("/jobs/{job_id}/trigger")
+@router.post("/jobs/{job_id}/trigger", response_model=JobInfo)
 async def trigger_job(job_id: str):
-    from src.jobs.scheduler import get_scheduler
+    from src.jobs.scheduler import get_scheduler, trigger_job_now
     scheduler = get_scheduler()
     if scheduler is None:
         raise HTTPException(status_code=503, detail="Scheduler not available")
     job = scheduler.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
-    asyncio.create_task(job.func())
-    return {"status": "triggered", "job_id": job_id}
+    try:
+        trigger_job_now(job_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    job = scheduler.get_job(job_id)
+    recent_runs_by_job = {}
+    try:
+        recent_runs_by_job = await _with_session(_load_recent_job_runs_by_job)
+    except Exception:
+        recent_runs_by_job = {}
+    return _serialize_job_info(job, recent_runs_by_job.get(job_id, []))
 
 
 @router.put("/jobs/{job_id}/schedule", response_model=JobInfo)
@@ -228,15 +257,12 @@ async def update_job_schedule(job_id: str, payload: JobScheduleUpdate):
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
     await reschedule_job(job_id, payload.day_of_week, payload.hour)
     job = scheduler.get_job(job_id)
-    next_run = job.next_run_time.isoformat() if job.next_run_time else None
-    return JobInfo(
-        id=job.id,
-        name=job.name,
-        day_of_week=payload.day_of_week,
-        hour=payload.hour,
-        next_run=next_run,
-        enabled=True,
-    )
+    recent_runs_by_job = {}
+    try:
+        recent_runs_by_job = await _with_session(_load_recent_job_runs_by_job)
+    except Exception:
+        recent_runs_by_job = {}
+    return _serialize_job_info(job, recent_runs_by_job.get(job_id, []))
 
 
 # ---------------------------------------------------------------------------
@@ -259,9 +285,13 @@ async def get_digest(digest_id: uuid.UUID):
 @router.post("/digest/send")
 async def send_digest():
     """Generate and send the next digest."""
-    from src.jobs.digest_job import run_digest
-    asyncio.create_task(run_digest())
-    return {"status": "triggered", "message": "Digest job started"}
+    from src.jobs.scheduler import trigger_job_now
+
+    try:
+        trigger_job_now("generate_and_send_digest")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"status": "queued", "message": "Digest job queued"}
 
 
 @router.get("/calendar/status")
@@ -319,6 +349,68 @@ async def _with_session(callback):
 async def _load_profile(session, settings):
     profile = await get_or_create_profile(session, settings)
     return serialize_profile(profile)
+
+
+def _serialize_job_info(job, recent_runs: list[dict] | None = None) -> JobInfo:
+    day_of_week, hour = _extract_job_schedule(job)
+    next_run = job.next_run_time.isoformat() if job.next_run_time else None
+    from src.jobs.runtime_status import get_job_runtime_snapshot
+
+    recent_runs = recent_runs or []
+    runtime = _resolve_job_runtime(
+        get_job_runtime_snapshot(job.id, job.name),
+        recent_runs,
+    )
+    return JobInfo(
+        id=job.id,
+        name=job.name,
+        day_of_week=day_of_week,
+        hour=hour,
+        next_run=next_run,
+        enabled=True,
+        runtime=JobRuntimeInfo(**runtime),
+        recent_runs=[JobRunInfo(**run) for run in recent_runs],
+    )
+
+
+def _extract_job_schedule(job) -> tuple[str | None, int]:
+    trigger = job.trigger
+    day_of_week = None
+    hour = 0
+    if hasattr(trigger, "fields"):
+        for field in trigger.fields:
+            if field.name == "day_of_week" and not field.is_default:
+                day_of_week = str(field)
+            if field.name == "hour" and not field.is_default:
+                hour = int(str(field))
+    return day_of_week, hour
+
+
+def _resolve_job_runtime(runtime: dict, recent_runs: list[dict]) -> dict:
+    has_live_state = any(
+        runtime.get(key)
+        for key in ("summary", "error", "started_at", "completed_at", "trigger")
+    ) or runtime.get("status") != "idle"
+    if has_live_state or not recent_runs:
+        return runtime
+
+    latest = recent_runs[0]
+    return {
+        "status": latest.get("status", "idle"),
+        "trigger": latest.get("trigger"),
+        "started_at": latest.get("started_at"),
+        "completed_at": latest.get("completed_at"),
+        "summary": latest.get("summary"),
+        "error": latest.get("error"),
+        "traceback": latest.get("traceback"),
+        "details": latest.get("details"),
+    }
+
+
+async def _load_recent_job_runs_by_job(session, settings):
+    from src.jobs.job_run_store import list_recent_job_runs
+
+    return await list_recent_job_runs(session)
 
 
 async def _update_profile(session, settings, payload: UserProfileUpdate):

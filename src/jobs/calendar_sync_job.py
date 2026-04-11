@@ -26,7 +26,12 @@ async def preview_google_calendar_sync() -> dict:
 
     integration = GoogleCalendarIntegration(settings)
     preview = await integration.preview_sync(candidates, result.profile)
-    return preview.to_dict()
+    payload = preview.to_dict()
+    payload["summary"] = (
+        f"Preview selected {preview.selected_count} events: "
+        f"{preview.created_count} create, {preview.updated_count} update, {preview.deleted_count} delete."
+    )
+    return payload
 
 
 async def run_google_calendar_sync(trigger: str = "scheduler") -> dict:
@@ -37,6 +42,7 @@ async def run_google_calendar_sync(trigger: str = "scheduler") -> dict:
             "status": "skipped",
             "trigger": trigger,
             "reason": "Google Calendar sync is disabled",
+            "summary": "Google Calendar sync is disabled.",
         }
 
     started_at = datetime.now(timezone.utc)
@@ -53,12 +59,18 @@ async def run_google_calendar_sync(trigger: str = "scheduler") -> dict:
             result.profile,
             trigger=trigger,
         )
+        payload = sync_result.to_dict()
+        payload["summary"] = (
+            f"Synced {sync_result.selected_count} events: "
+            f"{sync_result.created_count} created, {sync_result.updated_count} updated, "
+            f"{sync_result.deleted_count} deleted."
+        )
         await _persist_sync_run(
             settings=settings,
             trigger=trigger,
             started_at=started_at,
             completed_at=datetime.now(timezone.utc),
-            payload=sync_result.to_dict(),
+            payload=payload,
         )
         logger.info(
             "google_calendar_sync_complete",
@@ -67,7 +79,7 @@ async def run_google_calendar_sync(trigger: str = "scheduler") -> dict:
             updated=sync_result.updated_count,
             deleted=sync_result.deleted_count,
         )
-        return sync_result.to_dict()
+        return payload
     except Exception as exc:
         logger.error("google_calendar_sync_failed", error=str(exc))
         from src.notifications.error_notifier import notify_job_failure
@@ -84,6 +96,7 @@ async def run_google_calendar_sync(trigger: str = "scheduler") -> dict:
             "deleted_count": 0,
             "error": str(exc),
             "selected_events": [],
+            "summary": "Google Calendar sync failed.",
         }
         await _persist_sync_run(
             settings=settings,

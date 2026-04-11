@@ -141,6 +141,192 @@ def test_calendar_sync_with_key(client, admin_headers, monkeypatch):
     assert response.json()["status"] == "success"
 
 
+def test_jobs_with_key_include_persisted_recent_runs(client, admin_headers, monkeypatch):
+    from datetime import datetime, timezone
+
+    class FakeField:
+        def __init__(self, name, value, is_default=False):
+            self.name = name
+            self.value = value
+            self.is_default = is_default
+
+        def __str__(self):
+            return self.value
+
+    class FakeTrigger:
+        fields = [
+            FakeField("day_of_week", "*", is_default=True),
+            FakeField("hour", "6"),
+        ]
+
+    class FakeJob:
+        id = "ingest_all_sources"
+        name = "Ingest all sources"
+        trigger = FakeTrigger()
+        next_run_time = datetime(2026, 4, 11, 11, 0, tzinfo=timezone.utc)
+
+    class FakeScheduler:
+        def get_jobs(self):
+            return [FakeJob()]
+
+    monkeypatch.setattr("src.jobs.scheduler.get_scheduler", lambda: FakeScheduler())
+    monkeypatch.setattr(
+        "src.api.admin._with_session",
+        AsyncMock(
+            return_value={
+                "ingest_all_sources": [
+                    {
+                        "id": "run-1",
+                        "job_id": "ingest_all_sources",
+                        "job_name": "Ingest all sources",
+                        "trigger": "manual",
+                        "status": "warning",
+                        "started_at": "2026-04-10T12:00:00+00:00",
+                        "completed_at": "2026-04-10T12:02:00+00:00",
+                        "summary": "Ingested 12 events with 1 source error.",
+                        "error": None,
+                        "traceback": None,
+                        "details": {"source_results": {"do512": {"status": "error"}}},
+                        "created_at": "2026-04-10T12:02:00+00:00",
+                    }
+                ]
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        "src.jobs.runtime_status.get_job_runtime_snapshot",
+        lambda job_id, name: {
+            "status": "idle",
+            "trigger": None,
+            "started_at": None,
+            "completed_at": None,
+            "summary": None,
+            "error": None,
+            "traceback": None,
+            "details": None,
+        },
+    )
+
+    response = client.get("/admin/jobs", headers=admin_headers)
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload[0]["runtime"]["status"] == "warning"
+    assert payload[0]["recent_runs"][0]["summary"] == "Ingested 12 events with 1 source error."
+
+
+def test_jobs_with_key_include_traceback_from_failed_recent_run(client, admin_headers, monkeypatch):
+    from datetime import datetime, timezone
+
+    class FakeField:
+        def __init__(self, name, value, is_default=False):
+            self.name = name
+            self.value = value
+            self.is_default = is_default
+
+        def __str__(self):
+            return self.value
+
+    class FakeTrigger:
+        fields = [
+            FakeField("day_of_week", "sun"),
+            FakeField("hour", "3"),
+        ]
+
+    class FakeJob:
+        id = "cleanup_old_events"
+        name = "Archive old events"
+        trigger = FakeTrigger()
+        next_run_time = datetime(2026, 4, 11, 8, 0, tzinfo=timezone.utc)
+
+    class FakeScheduler:
+        def get_jobs(self):
+            return [FakeJob()]
+
+    monkeypatch.setattr("src.jobs.scheduler.get_scheduler", lambda: FakeScheduler())
+    monkeypatch.setattr(
+        "src.api.admin._with_session",
+        AsyncMock(
+            return_value={
+                "cleanup_old_events": [
+                    {
+                        "id": "run-2",
+                        "job_id": "cleanup_old_events",
+                        "job_name": "Archive old events",
+                        "trigger": "scheduler",
+                        "status": "failed",
+                        "started_at": "2026-04-10T03:00:00+00:00",
+                        "completed_at": "2026-04-10T03:00:05+00:00",
+                        "summary": "Run failed.",
+                        "error": "RuntimeError: Boom",
+                        "traceback": "Traceback line 1\nTraceback line 2",
+                        "details": None,
+                        "created_at": "2026-04-10T03:00:05+00:00",
+                    }
+                ]
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        "src.jobs.runtime_status.get_job_runtime_snapshot",
+        lambda job_id, name: {
+            "status": "idle",
+            "trigger": None,
+            "started_at": None,
+            "completed_at": None,
+            "summary": None,
+            "error": None,
+            "traceback": None,
+            "details": None,
+        },
+    )
+
+    response = client.get("/admin/jobs", headers=admin_headers)
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload[0]["runtime"]["status"] == "failed"
+    assert "Traceback line 1" in payload[0]["runtime"]["traceback"]
+    assert "Traceback line 1" in payload[0]["recent_runs"][0]["traceback"]
+
+
+def test_jobs_trigger_returns_conflict_when_already_running(client, admin_headers, monkeypatch):
+    from datetime import datetime, timezone
+
+    class FakeField:
+        def __init__(self, name, value, is_default=False):
+            self.name = name
+            self.value = value
+            self.is_default = is_default
+
+        def __str__(self):
+            return self.value
+
+    class FakeTrigger:
+        fields = [
+            FakeField("day_of_week", "*", is_default=True),
+            FakeField("hour", "6"),
+        ]
+
+    class FakeJob:
+        id = "ingest_all_sources"
+        name = "Ingest all sources"
+        trigger = FakeTrigger()
+        next_run_time = datetime(2026, 4, 11, 11, 0, tzinfo=timezone.utc)
+
+    class FakeScheduler:
+        def get_job(self, job_id):
+            return FakeJob() if job_id == "ingest_all_sources" else None
+
+    monkeypatch.setattr("src.jobs.scheduler.get_scheduler", lambda: FakeScheduler())
+    monkeypatch.setattr(
+        "src.jobs.scheduler.trigger_job_now",
+        lambda job_id: (_ for _ in ()).throw(RuntimeError("Job 'Ingest all sources' is already running")),
+    )
+
+    response = client.post("/admin/jobs/ingest_all_sources/trigger", headers=admin_headers)
+    assert response.status_code == 409
+    assert "already running" in response.text
+
+
 def test_admin_profile_with_key(client, admin_headers, monkeypatch):
     monkeypatch.setattr(
         "src.api.admin._with_session",

@@ -3,6 +3,7 @@ from src.models.calendar_sync import CalendarSyncRun
 from src.models.digest import Digest
 from src.models.event import Event, EventSource
 from src.models.feedback import Feedback
+from src.models.job_run import JobRun
 from src.models.prompt_config import PromptConfig
 from src.models.source_health import SourceHealth
 from src.models.tracked_item import TrackedItem
@@ -15,6 +16,7 @@ __all__ = [
     "Event",
     "EventSource",
     "Feedback",
+    "JobRun",
     "PromptConfig",
     "SourceHealth",
     "TrackedItem",
